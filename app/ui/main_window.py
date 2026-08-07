@@ -362,9 +362,7 @@ class MainWindow(QMainWindow):
         self.resize(320, 240)
         if geo is not None:
             self.move(geo.right() - self.width() - 24, geo.top() + 24)
-        self.setWindowFlag(
-            Qt.WindowStaysOnTopHint, self._full_topmost() or self._mini_pinned()
-        )
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, False)  # 迷你窗口不置顶
         self.show()
 
     def _exit_mini_mode(self) -> None:
@@ -539,15 +537,11 @@ class MainWindow(QMainWindow):
         settings = self.data.setdefault("settings", {})
         settings["mini_pinned"] = not settings.get("mini_pinned", False)
         storage.save_data(self.data)
-        self.setWindowFlag(
-            Qt.WindowStaysOnTopHint, self._full_topmost() or self._mini_pinned()
-        )
-        self.show()
         self._update_mini_pin_style()
 
     def _update_mini_pin_style(self) -> None:
         pinned = self._mini_pinned()
-        self.mini_pin_btn.setToolTip("取消固定" if pinned else "固定（置顶）")
+        self.mini_pin_btn.setToolTip("取消固定" if pinned else "固定（不可拖动）")
         if pinned:
             self.mini_pin_btn.setStyleSheet(
                 f"QPushButton {{ background:{self.theme.button}; "
@@ -593,6 +587,10 @@ class MainWindow(QMainWindow):
         super().mouseDoubleClickEvent(event)
 
     def mousePressEvent(self, event):
+        if self._mini_mode and self._mini_pinned():
+            # 固定状态：锁定位置，不可拖动
+            super().mousePressEvent(event)
+            return
         if event.button() == Qt.LeftButton:
             self._drag_offset = (
                 event.globalPosition().toPoint() - self.frameGeometry().topLeft()

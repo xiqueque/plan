@@ -6,6 +6,8 @@ import unittest
 from datetime import date
 from pathlib import Path
 
+from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from app.core import storage
@@ -82,10 +84,25 @@ class MiniModeTestCase(unittest.TestCase):
         window = MainWindow()
         window._enter_mini_mode()
         self.assertFalse(window.data["settings"].get("mini_pinned", False))
+        # 迷你窗口不置顶
+        self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
 
         window._toggle_mini_pin()
         self.assertTrue(window.data["settings"]["mini_pinned"])
         self.assertIn("QPushButton", window.mini_pin_btn.styleSheet())
+        # 固定 ≠ 置顶
+        self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        # 固定后按下鼠标不应开始拖动
+        event = QMouseEvent(
+            QEvent.MouseButtonPress,
+            QPointF(20, 20),
+            QPointF(120, 120),
+            Qt.LeftButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+        )
+        window.mousePressEvent(event)
+        self.assertIsNone(window._drag_offset)
 
         window._toggle_mini_pin()
         self.assertFalse(window.data["settings"]["mini_pinned"])
