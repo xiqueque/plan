@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import time
 import uuid
 from datetime import date, timedelta
@@ -11,6 +12,7 @@ from pathlib import Path
 # 用户数据目录：app/data（与源码同级，不纳入版本管理）
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILE = DATA_DIR / "plan.json"
+IMAGES_DIR = DATA_DIR / "images"
 
 DEFAULT_SETTINGS = {"cleanup_days": 15, "sound_volume": 12}
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
@@ -35,6 +37,7 @@ def new_task(
     reminder_mode: str = "none",
     reminder_time: str | None = None,
     reminder_weekdays: list[int] | None = None,
+    images: list | None = None,
 ) -> dict:
     """创建一个新任务字典。"""
     if reminder_mode == "daily":
@@ -52,6 +55,7 @@ def new_task(
         "reminder_weekdays": (
             list(reminder_weekdays) if reminder_weekdays else list(ALL_WEEKDAYS)
         ),
+        "images": list(images) if images else [],
         "pinned": False,
         "pinned_at": None,
         "created_at": time.time(),
@@ -59,7 +63,13 @@ def new_task(
 
 
 def empty_data() -> dict:
-    return {"settings": dict(DEFAULT_SETTINGS), "tasks": [], "done": {}, "reminded": {}}
+    return {
+        "settings": dict(DEFAULT_SETTINGS),
+        "tasks": [],
+        "done": {},
+        "reminded": {},
+        "day_images": {},
+    }
 
 
 def load_data() -> dict:
@@ -79,6 +89,7 @@ def load_data() -> dict:
     data.setdefault("tasks", [])
     data.setdefault("done", {})
     data.setdefault("reminded", {})
+    data.setdefault("day_images", {})
     settings = data["settings"]
     # 兼容旧版本：check_sound -> sound_file
     if "check_sound" in settings and "sound_file" not in settings:
@@ -93,6 +104,8 @@ def load_data() -> dict:
             task["reminder_time"] = None
         if "reminder_weekdays" not in task:
             task["reminder_weekdays"] = list(ALL_WEEKDAYS)
+        if "images" not in task:
+            task["images"] = []
         task["is_daily"] = task.get("reminder_mode") == "daily"
     return data
 
@@ -168,6 +181,42 @@ def format_weekdays(weekdays) -> str:
     return "（" + "、".join(names) + "）"
 
 
+# ---------- 图片 ----------
+def import_image(src_path) -> str | None:
+    """把图片复制到数据目录，返回存储文件名；失败返回 None。"""
+    try:
+        IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+        ext = Path(src_path).suffix.lower()
+        if ext not in {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}:
+            ext = ".png"
+        name = f"{uuid.uuid4().hex[:12]}{ext}"
+        shutil.copy2(src_path, IMAGES_DIR / name)
+        return name
+    except OSError:
+        return None
+
+
+def image_path(name: str) -> Path:
+    return IMAGES_DIR / name
+
+
+def delete_image_file(name: str) -> None:
+    try:
+        (IMAGES_DIR / name).unlink()
+    except OSError:
+        pass
+
+
+def referenced_image_names(data: dict) -> set:
+    """所有仍被引用（任务附图 + 每日图片区）的图片文件名。"""
+    names = set()
+    for task in data.get("tasks", []):
+        names.update(task.get("images") or [])
+    for day_list in data.get("day_images", {}).values():
+        names.update(day_list)
+    return names
+
+
 def run_cleanup(data: dict) -> int:
     """自动清理：删除超过 N 天的非每天任务及过期完成记录，返回删除数量。"""
     try:
@@ -187,4 +236,16 @@ def run_cleanup(data: dict) -> int:
     data["reminded"] = {
         d: v for d, v in data.get("reminded", {}).items() if d >= cutoff
     }
+    data["day_images"] = {
+        d: v for d, v in data.get("day_images", {}).items() if d >= cutoff
+    }
+    # 删除未被任何任务/图片区引用的图片文件
+    referenced = referenced_image_names(data)
+    if IMAGES_DIR.exists():
+        for f in IMAGES_DIR.iterdir():
+            if f.is_file() and f.name not in referenced:
+                try:
+                    f.unlink()
+                except OSError:
+                    pass
     return removed

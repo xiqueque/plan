@@ -1,11 +1,15 @@
 """新增 / 编辑计划对话框。"""
 from __future__ import annotations
 
+from pathlib import Path
+
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -16,8 +20,15 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from ..core.storage import ALL_WEEKDAYS, WEEKDAY_NAMES
+from ..core.storage import (
+    ALL_WEEKDAYS,
+    WEEKDAY_NAMES,
+    delete_image_file,
+    image_path,
+    import_image,
+)
 from .style import CHECKBOX_QSS
+from .thumb import IMAGE_FILTER, ThumbButton
 from .time_picker import TimeButton
 
 TASK_COLORS = [
@@ -110,6 +121,20 @@ class TaskDialog(QDialog):
         self.mode_once.toggled.connect(self._update_reminder_enabled)
         self.mode_daily.toggled.connect(self._update_reminder_enabled)
 
+        # 图片（可选）
+        image_box = QGroupBox("图片（可选）")
+        image_layout = QVBoxLayout(image_box)
+        self.image_row = QHBoxLayout()
+        self.image_row.setSpacing(6)
+        self.image_row.addStretch(1)
+        image_layout.addLayout(self.image_row)
+        add_image_btn = QPushButton("添加图片…")
+        add_image_btn.clicked.connect(self._add_images)
+        image_layout.addWidget(add_image_btn)
+        layout.addWidget(image_box)
+        self._image_names: list[str] = []
+        self._created_image_names: list[str] = []
+
         # 字体颜色选择
         color_row = QHBoxLayout()
         color_row.addWidget(QLabel("字体颜色："))
@@ -160,6 +185,9 @@ class TaskDialog(QDialog):
             weekdays = task.get("reminder_weekdays")
             if isinstance(weekdays, list):
                 self._set_weekdays(weekdays)
+            for name in task.get("images") or []:
+                if image_path(name).exists():
+                    self._add_image_name(name, created=False)
         self._select_color((task or {}).get("color") or "#1F3A4D")
 
     def _update_time_enabled(self, enabled: bool) -> None:
@@ -176,6 +204,42 @@ class TaskDialog(QDialog):
         chosen = set(weekdays)
         for i, check in self.weekday_checks.items():
             check.setChecked(i in chosen)
+
+    def _add_images(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "选择图片", str(Path.home()), IMAGE_FILTER
+        )
+        for p in paths:
+            name = import_image(p)
+            if name:
+                self._add_image_name(name, created=True)
+
+    def _add_image_name(self, name: str, created: bool) -> None:
+        self._image_names.append(name)
+        if created:
+            self._created_image_names.append(name)
+        thumb = ThumbButton(image_path(name))
+        thumb.deleted.connect(
+            lambda n=name, t=thumb: self._remove_image(n, t)
+        )
+        self.image_row.insertWidget(self.image_row.count() - 1, thumb)
+
+    def _remove_image(self, name: str, thumb) -> None:
+        if name in self._image_names:
+            self._image_names.remove(name)
+        if name in self._created_image_names:
+            self._created_image_names.remove(name)
+            delete_image_file(name)
+        thumb.deleteLater()
+
+    def images(self) -> list:
+        return list(self._image_names)
+
+    def reject(self) -> None:
+        # 取消时清理本次新添加的图片，避免留下无用文件
+        for name in self._created_image_names:
+            delete_image_file(name)
+        super().reject()
 
     def values(self):
         """返回 (内容, 开始, 结束, 是否每天出现, 提醒模式, 提醒时间, 提醒周几)。"""

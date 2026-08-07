@@ -29,6 +29,7 @@ from .reminder_popup import ReminderPopup
 from .settings_dialog import SettingsDialog
 from .style import CHECKBOX_QSS
 from .task_dialog import TaskDialog
+from .thumb import IMAGE_FILTER, ThumbButton
 
 try:
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
@@ -276,6 +277,30 @@ class MainWindow(QMainWindow):
         self.search_edit.textChanged.connect(self._on_search)
         root.addWidget(self.search_edit)
 
+        # 独立图片区
+        img_header = QHBoxLayout()
+        img_title = QLabel("图片")
+        img_title.setStyleSheet("font-size:15px; font-weight:bold;")
+        img_add = QPushButton("＋ 添加图片")
+        img_add.setObjectName("smallBtn")
+        img_add.clicked.connect(self.add_day_images)
+        img_header.addWidget(img_title)
+        img_header.addStretch(1)
+        img_header.addWidget(img_add)
+        root.addLayout(img_header)
+
+        self.image_scroll = QScrollArea()
+        self.image_scroll.setWidgetResizable(True)
+        self.image_scroll.setFixedHeight(120)
+        self.image_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.image_container = QWidget()
+        self.image_layout = QHBoxLayout(self.image_container)
+        self.image_layout.setContentsMargins(0, 0, 0, 0)
+        self.image_layout.setSpacing(6)
+        self.image_layout.addStretch(1)
+        self.image_scroll.setWidget(self.image_container)
+        root.addWidget(self.image_scroll)
+
         # 计划列表（滚动区域）
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -312,6 +337,7 @@ class MainWindow(QMainWindow):
     def refresh(self) -> None:
         self.date_label.setText(self.format_date(self.current_date))
         self._rebuild_list()
+        self._refresh_images()
 
     @staticmethod
     def format_date(d: date) -> str:
@@ -390,6 +416,8 @@ class MainWindow(QMainWindow):
         if task.get("reminder_time"):
             time_text += ("  ·  " if time_text else "") + "提醒 " + task["reminder_time"]
             time_text += storage.format_weekdays(task.get("reminder_weekdays"))
+        if task.get("images"):
+            time_text += ("  ·  " if time_text else "") + f"图片 {len(task['images'])}"
         if time_text:
             time_label = QLabel(time_text)
             time_label.setObjectName("timeLabel")
@@ -563,6 +591,7 @@ class MainWindow(QMainWindow):
         text, start, end, is_daily, mode, remind_time, weekdays = dialog.values()
         if not text:
             return
+        images = dialog.images()
         task = storage.new_task(
             text,
             self.current_date.isoformat(),
@@ -573,6 +602,7 @@ class MainWindow(QMainWindow):
             mode,
             remind_time,
             weekdays,
+            images,
         )
         self.data["tasks"].append(task)
         storage.save_data(self.data)
@@ -592,6 +622,7 @@ class MainWindow(QMainWindow):
         task["reminder_mode"] = mode
         task["reminder_time"] = remind_time
         task["reminder_weekdays"] = weekdays
+        task["images"] = dialog.images()
         task["color"] = dialog.selected_color()
         storage.save_data(self.data)
         self._rebuild_list()
@@ -658,6 +689,54 @@ class MainWindow(QMainWindow):
     def _on_search(self, text: str) -> None:
         self.keyword = text
         self._rebuild_list()
+
+    # ---------- 独立图片区 ----------
+    def _refresh_images(self) -> None:
+        while self.image_layout.count() > 1:
+            item = self.image_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        date_str = self.current_date.isoformat()
+        names = self.data.get("day_images", {}).get(date_str, [])
+        if not names:
+            hint = QLabel("暂无图片，点右上角「添加图片」可放课程表等图片")
+            hint.setStyleSheet("color:#6B8CA3; padding:8px;")
+            self.image_layout.insertWidget(0, hint)
+            return
+        for name in names:
+            path = storage.image_path(name)
+            if not path.exists():
+                continue
+            thumb = ThumbButton(path)
+            thumb.deleted.connect(lambda n=name: self._delete_day_image(n))
+            self.image_layout.insertWidget(self.image_layout.count() - 1, thumb)
+
+    def add_day_images(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "选择图片", str(Path.home()), IMAGE_FILTER
+        )
+        if not paths:
+            return
+        date_str = self.current_date.isoformat()
+        day = self.data.setdefault("day_images", {}).setdefault(date_str, [])
+        for p in paths:
+            name = storage.import_image(p)
+            if name:
+                day.append(name)
+        storage.save_data(self.data)
+        self._refresh_images()
+
+    def _delete_day_image(self, name: str) -> None:
+        date_str = self.current_date.isoformat()
+        day = self.data.get("day_images", {}).get(date_str, [])
+        if name not in day:
+            return
+        day.remove(name)
+        if name not in storage.referenced_image_names(self.data):
+            storage.delete_image_file(name)
+        storage.save_data(self.data)
+        self._refresh_images()
 
     def open_settings(self) -> None:
         settings = self.data["settings"]
@@ -768,6 +847,8 @@ class MainWindow(QMainWindow):
                 + task["reminder_time"]
                 + storage.format_weekdays(task.get("reminder_weekdays"))
             )
+        if task.get("images"):
+            extra.append(f"图片{len(task['images'])}")
         if task.get("pinned"):
             extra.append("置顶")
         if extra:
