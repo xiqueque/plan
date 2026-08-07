@@ -5,7 +5,7 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QUrl, QVariantAnimation
+from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, QUrl, QVariantAnimation
 from PySide6.QtGui import QColor, QFont, QGuiApplication, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
@@ -373,6 +373,9 @@ class MainWindow(QMainWindow):
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.show()
         self._force_not_topmost()
+        # 沉到其他窗口后面：迷你窗口永不抢在最前
+        self.lower()
+        QTimer.singleShot(0, self.lower)
 
     def _exit_mini_mode(self) -> None:
         if not self._mini_mode:
