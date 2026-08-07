@@ -6,7 +6,7 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtWidgets import QAbstractItemView, QApplication
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QLabel
 
 from app.core import storage
 from app.core.reminder import ReminderScheduler
@@ -88,6 +88,7 @@ class ReminderTestCase(unittest.TestCase):
 
     def test_cleanup_prunes_reminded(self):
         data = storage.empty_data()
+        data["settings"]["cleanup_days"] = 15
         old_date = (date.today() - timedelta(days=20)).isoformat()
         data["reminded"] = {old_date: {"t1": "09:00"}}
         storage.save_data(data)
@@ -157,6 +158,20 @@ class ReminderTestCase(unittest.TestCase):
         self.assertEqual(
             dialog.hour_list.verticalScrollMode(), QAbstractItemView.ScrollPerPixel
         )
+        dialog.close()
+
+    def test_calendar_shows_day_tasks(self):
+        from app.ui.calendar_dialog import CalendarDialog
+
+        data = storage.empty_data()
+        today = date.today().isoformat()
+        data["tasks"].append(
+            storage.new_task("当天任务", today, "09:00", "10:00")
+        )
+        dialog = CalendarDialog(None, date.today(), data)
+        labels = [lbl.text() for lbl in dialog.findChildren(QLabel)]
+        self.assertTrue(any("当天任务" in t for t in labels))
+        self.assertTrue(any("计划" in t for t in labels))
         dialog.close()
 
     def test_popup_constructs_and_closes(self):

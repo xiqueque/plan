@@ -14,7 +14,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILE = DATA_DIR / "plan.json"
 IMAGES_DIR = DATA_DIR / "images"
 
-DEFAULT_SETTINGS = {"cleanup_days": 15, "sound_volume": 12, "image_viewer": ""}
+DEFAULT_SETTINGS = {"cleanup_days": 0, "sound_volume": 12, "image_viewer": ""}
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 ALL_WEEKDAYS = list(range(7))
 
@@ -246,9 +246,11 @@ def forget_image_display(name: str) -> None:
 def run_cleanup(data: dict) -> int:
     """自动清理：删除超过 N 天的非每天任务及过期完成记录，返回删除数量。"""
     try:
-        cleanup_days = max(1, int(data.get("settings", {}).get("cleanup_days", 15)))
+        cleanup_days = int(data.get("settings", {}).get("cleanup_days", 0))
     except (TypeError, ValueError):
-        cleanup_days = 15
+        cleanup_days = 0
+    if cleanup_days <= 0:
+        return 0  # 默认不清除：0 天表示不自动清理
     cutoff = (date.today() - timedelta(days=cleanup_days)).isoformat()
     kept = []
     removed = 0

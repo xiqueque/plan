@@ -36,7 +36,7 @@ class SettingsDialog(QDialog):
     def __init__(
         self,
         parent=None,
-        cleanup_days: int = 15,
+        cleanup_days: int = 0,
         sound_file: str = "",
         sound_volume: int = 12,
         default_sound_name: str = "",
@@ -64,9 +64,9 @@ class SettingsDialog(QDialog):
 
         # 自动清理天数
         cleanup_row = QHBoxLayout()
-        cleanup_row.addWidget(QLabel("自动清理：超过多少天的计划自动删除"))
+        cleanup_row.addWidget(QLabel("自动清理天数（0 = 不清除）："))
         self.days_spin = QSpinBox()
-        self.days_spin.setRange(1, 365)
+        self.days_spin.setRange(0, 365)
         self.days_spin.setValue(cleanup_days)
         self.days_spin.setSuffix(" 天")
         cleanup_row.addWidget(self.days_spin)

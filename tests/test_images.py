@@ -54,6 +54,7 @@ class ImageTestCase(unittest.TestCase):
         data = storage.empty_data()
         data["day_images"]["2026-01-01"] = [name]  # 过期日期
         data["image_daily"] = {name: True}
+        data["settings"]["cleanup_days"] = 15
         storage.save_data(data)
         loaded = storage.load_data()
         storage.run_cleanup(loaded)

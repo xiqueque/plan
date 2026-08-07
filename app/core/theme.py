@@ -10,7 +10,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage
 
 THEME_FOLDER = Path(r"C:\Users\Junhong\Pictures\peise")
-SCREENSHOT_FOLDER = Path(r"C:\Users\Junhong\Pictures\Screenshots")
 DEFAULT_THEME_ID = "默认淡蓝"
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
 THEME_NAMES = [
@@ -195,29 +194,3 @@ def get_theme(settings: dict, themes: dict) -> Theme:
     if theme_id in themes:
         return themes[theme_id]
     return DEFAULT_THEME
-
-
-def latest_image(folder: Path = SCREENSHOT_FOLDER) -> Path | None:
-    """返回文件夹中最新的图片文件；不存在时返回 None。"""
-    if not folder.exists():
-        return None
-    files = [
-        f
-        for f in folder.iterdir()
-        if f.is_file() and f.suffix.lower() in IMAGE_EXTS
-    ]
-    if not files:
-        return None
-    return max(files, key=lambda f: f.stat().st_mtime)
-
-
-def date_display_colors(folder: Path = SCREENSHOT_FOLDER) -> tuple[str, str] | None:
-    """从最新截图中提取两个主色，用于日期显示的生动渐变配色。"""
-    image = latest_image(folder)
-    if image is None:
-        return None
-    try:
-        colors = _extract_colors(image)
-    except Exception:
-        return None
-    return _hex(colors[2]), _hex(colors[1])

@@ -74,6 +74,7 @@ class StorageTestCase(unittest.TestCase):
 
     def test_cleanup_removes_old_tasks_keeps_daily(self):
         data = storage.empty_data()
+        data["settings"]["cleanup_days"] = 15
         old = storage.new_task("旧计划", (date.today() - timedelta(days=20)).isoformat())
         recent = storage.new_task("新计划", storage.today_str())
         daily = storage.new_task("每天任务", storage.today_str(), is_daily=True)
