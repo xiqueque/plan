@@ -392,10 +392,9 @@ class MainWindow(QMainWindow):
         if self._full_geometry is not None:
             self.setGeometry(self._full_geometry)
         self._mini_mode = False
-        # 展开时不抢焦点、不跳到最前
-        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.show()
-        self.setAttribute(Qt.WA_ShowWithoutActivating, False)
+        self.raise_()
+        self.activateWindow()
         if self._full_topmost():
             self._force_topmost()
 
