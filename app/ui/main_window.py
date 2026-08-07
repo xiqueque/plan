@@ -168,6 +168,7 @@ class MainWindow(QMainWindow):
 
         self._themes = theme.load_themes()
         self.theme = theme.get_theme(self.data["settings"], self._themes)
+        self._date_gradient = theme.date_display_colors()
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self._drag_offset = None
@@ -205,6 +206,15 @@ class MainWindow(QMainWindow):
         self.date_label.setToolTip("点击弹出日历，快速跳转日期")
         self.date_label.setCursor(Qt.PointingHandCursor)
         self.date_label.clicked.connect(self.open_calendar)
+        if self._date_gradient:
+            c1, c2 = self._date_gradient
+            self.date_label.setStyleSheet(
+                "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:1, "
+                f"stop:0 {c1}, stop:1 {c2}); color: white; border: none; "
+                "border-radius: 12px; padding: 8px 16px; font-size: 18px; "
+                "font-weight: bold; }"
+                "QPushButton:hover { color: white; }"
+            )
         top.addWidget(self.date_label)
         top.addStretch(1)
         self.prev_btn = QPushButton("前一天")
@@ -293,6 +303,11 @@ class MainWindow(QMainWindow):
         self.settings_btn.clicked.connect(self.open_settings)
         bottom.addWidget(self.add_btn, 1)
         bottom.addWidget(self.screenshot_btn)
+        self.month_btn = QPushButton("月计划")
+        self.month_btn.setObjectName("smallBtn")
+        self.month_btn.setToolTip("查看月度计划")
+        self.month_btn.clicked.connect(self.open_month_plan)
+        bottom.addWidget(self.month_btn)
         bottom.addWidget(self.settings_btn)
         bottom.addWidget(QSizeGrip(self), 0, Qt.AlignBottom | Qt.AlignRight)
         root.addLayout(bottom)
@@ -1227,6 +1242,12 @@ class MainWindow(QMainWindow):
             storage.save_data(self.data)
             self._show_msg("清理完成", f"已自动清理 {removed} 条过期计划。")
         self._rebuild_list()
+
+    def open_month_plan(self) -> None:
+        from .month_dialog import MonthPlanDialog
+
+        dialog = MonthPlanDialog(self, self.data, self.current_date)
+        dialog.exec()
 
     # ---------- 截图导出 ----------
     def export_screenshot(self) -> None:

@@ -62,6 +62,19 @@ class ThemeTestCase(unittest.TestCase):
         self.assertIn(theme.DEFAULT_THEME.bg, qss)
         self.assertIn(theme.DEFAULT_THEME.border, qss)
 
+    def test_date_display_colors(self):
+        self.assertIsNone(theme.date_display_colors(self.tmp_empty()))
+        with tempfile.TemporaryDirectory() as d:
+            folder = Path(d)
+            make_image(folder / "shot.png", [(200, 120, 60), (30, 80, 160), (240, 200, 120)])
+            colors = theme.date_display_colors(folder)
+            self.assertIsNotNone(colors)
+            for c in colors:
+                self.assertRegex(c, r"^#[0-9A-F]{6}$")
+
+    def tmp_empty(self) -> Path:
+        return Path(tempfile.mkdtemp())
+
 
 if __name__ == "__main__":
     unittest.main()
