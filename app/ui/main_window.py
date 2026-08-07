@@ -541,9 +541,18 @@ class MainWindow(QMainWindow):
             self._tray.showMessage(
                 "每日计划",
                 "已最小化到托盘，提醒功能继续运行。",
-                QSystemTrayIcon.Information,
+                QSystemTrayIcon.NoIcon,
                 2500,
             )
+
+    def _show_msg(self, title: str, text: str) -> None:
+        """无系统提示音的弹窗。"""
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.setIcon(QMessageBox.NoIcon)
+        box.addButton("好的", QMessageBox.AcceptRole)
+        box.exec()
 
     def _quit(self) -> None:
         self._quitting = True
@@ -723,7 +732,7 @@ class MainWindow(QMainWindow):
     def _confirm_complete(self) -> bool:
         box = QMessageBox(self)
         box.setWindowTitle("完成任务")
-        box.setIcon(QMessageBox.Question)
+        box.setIcon(QMessageBox.NoIcon)
         box.setText("你确定完成任务了吗( •̀ ω •́ )✧")
         box.setFont(QFont("Microsoft YaHei", 13, QFont.Bold))
         yes_btn = box.addButton("确定(●'◡'●)", QMessageBox.AcceptRole)
@@ -737,7 +746,7 @@ class MainWindow(QMainWindow):
         )
         box = QMessageBox(self)
         box.setWindowTitle("太棒了")
-        box.setIcon(QMessageBox.Information)
+        box.setIcon(QMessageBox.NoIcon)
         box.setText(message)
         box.setFont(QFont("Microsoft YaHei", 13, QFont.Bold))
         box.addButton("好的！", QMessageBox.AcceptRole)
@@ -965,7 +974,7 @@ class MainWindow(QMainWindow):
     def _delete_task(self, task: dict) -> None:
         box = QMessageBox(self)
         box.setWindowTitle("删除计划")
-        box.setIcon(QMessageBox.Question)
+        box.setIcon(QMessageBox.NoIcon)
         box.setText(f"确定删除「{task.get('text', '')}」吗？")
         yes_btn = box.addButton("删除", QMessageBox.DestructiveRole)
         box.addButton("取消", QMessageBox.RejectRole)
@@ -1157,7 +1166,7 @@ class MainWindow(QMainWindow):
             else:
                 autostart.disable()
         except OSError:
-            QMessageBox.warning(self, "开机自启", "设置开机自启动失败，请稍后重试。")
+            self._show_msg("开机自启", "设置开机自启动失败，请稍后重试。")
         # 应用主题与总在最前
         self.theme = theme.get_theme(settings, self._themes)
         self.setStyleSheet(build_main_qss(self.theme))
@@ -1166,7 +1175,7 @@ class MainWindow(QMainWindow):
         removed = storage.run_cleanup(self.data)
         if removed:
             storage.save_data(self.data)
-            QMessageBox.information(self, "清理完成", f"已自动清理 {removed} 条过期计划。")
+            self._show_msg("清理完成", f"已自动清理 {removed} 条过期计划。")
         self._rebuild_list()
 
     # ---------- 截图导出 ----------
@@ -1174,7 +1183,7 @@ class MainWindow(QMainWindow):
         date_str = self.current_date.isoformat()
         tasks = storage.tasks_for_date(self.data, date_str)
         if not tasks:
-            QMessageBox.information(self, "截图", "这一天还没有计划，先添加几条再截图吧。")
+            self._show_msg("截图", "这一天还没有计划，先添加几条再截图吧。")
             return
 
         widget = self._build_export_widget(date_str, tasks)
@@ -1191,9 +1200,9 @@ class MainWindow(QMainWindow):
         if not path.lower().endswith(".png"):
             path += ".png"
         if pixmap.save(path, "PNG"):
-            QMessageBox.information(self, "截图", f"截图已保存：\n{path}")
+            self._show_msg("截图", f"截图已保存：\n{path}")
         else:
-            QMessageBox.warning(self, "截图", "保存失败，请换个位置再试。")
+            self._show_msg("截图", "保存失败，请换个位置再试。")
 
     def _build_export_widget(self, date_str: str, tasks: list) -> QWidget:
         """生成一张干净的计划卡片（不含按钮，方便发手机查看）。"""
