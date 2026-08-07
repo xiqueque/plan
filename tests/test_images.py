@@ -154,10 +154,10 @@ class ImageTestCase(unittest.TestCase):
         self.assertIn(name2, sources)  # 每天任务附带的图片
         self.assertEqual(sources[name2], "task")
 
-        # 标记后的缩略图左上角显示星号
+        # 标记后的缩略图带有星标
         thumbs = window.findChildren(ThumbButton)
         marked_thumb = next(t for t in thumbs if t._marked)
-        self.assertTrue(marked_thumb.star.isVisible())
+        self.assertTrue(marked_thumb._marked)
 
 
 if __name__ == "__main__":

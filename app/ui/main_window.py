@@ -357,7 +357,9 @@ class MainWindow(QMainWindow):
         while self.list_layout.count() > 1:
             item = self.list_layout.takeAt(0)
             if item.widget():
-                item.widget().deleteLater()
+                widget = item.widget()
+                widget.setParent(None)
+                widget.deleteLater()
 
         date_str = self.current_date.isoformat()
         tasks = storage.tasks_for_date(self.data, date_str)
@@ -701,7 +703,9 @@ class MainWindow(QMainWindow):
         while self.image_layout.count() > 1:
             item = self.image_layout.takeAt(0)
             if item.widget():
-                item.widget().deleteLater()
+                widget = item.widget()
+                widget.setParent(None)
+                widget.deleteLater()
 
         entries = self._day_image_entries(self.current_date.isoformat())
         self.img_count_label.setText(f"{len(entries)} 张")

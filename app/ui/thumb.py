@@ -5,8 +5,8 @@ import os
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QFontMetrics, QIcon, QPixmap
+from PySide6.QtCore import QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFontMetrics, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QInputDialog,
@@ -100,15 +100,6 @@ class ThumbButton(QFrame):
         self.caption.setToolTip(self.display_name)
         lay.addWidget(self.caption)
 
-        # 左上角星标（标记为每日图片）
-        self.star = QLabel("★")
-        self.star.setStyleSheet(
-            "color:#F0B429; font-size:18px; background:transparent;"
-        )
-        self.star.setFixedSize(18, 18)
-        self.star.move(3, 3)
-        self.star.setVisible(self._marked)
-
     def _elide(self, text: str) -> str:
         metrics = QFontMetrics(self.font())
         return metrics.elidedText(text, Qt.ElideMiddle, 96)
@@ -121,7 +112,22 @@ class ThumbButton(QFrame):
 
     def set_marked(self, marked: bool) -> None:
         self._marked = marked
-        self.star.setVisible(marked)
+        self.update()
+
+    def paintEvent(self, event):
+        """把每日星标直接画在缩略图左上角（不会飘到屏幕角落）。"""
+        super().paintEvent(event)
+        if not self._marked:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        font = painter.font()
+        font.setPixelSize(18)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QColor("#F0B429"))
+        painter.drawText(QRectF(2, 0, 24, 22), Qt.AlignCenter, "★")
+        painter.end()
 
     def _open(self) -> None:
         open_image_external(self.path)
