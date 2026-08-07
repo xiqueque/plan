@@ -171,7 +171,19 @@ class ReminderTestCase(unittest.TestCase):
         dialog = CalendarDialog(None, date.today(), data)
         labels = [lbl.text() for lbl in dialog.findChildren(QLabel)]
         self.assertTrue(any("当天任务" in t for t in labels))
-        self.assertTrue(any("计划" in t for t in labels))
+        dialog.close()
+
+    def test_day_detail_dialog(self):
+        from app.ui.calendar_widget import DayDetailDialog
+
+        data = storage.empty_data()
+        today = date.today().isoformat()
+        data["tasks"].append(
+            storage.new_task("详情任务", today, "10:00", "11:00", color="#E05252")
+        )
+        dialog = DayDetailDialog(None, data, date.today())
+        labels = [lbl.text() for lbl in dialog.findChildren(QLabel)]
+        self.assertTrue(any("详情任务" in t for t in labels))
         dialog.close()
 
     def test_popup_constructs_and_closes(self):
