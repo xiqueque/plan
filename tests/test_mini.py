@@ -78,8 +78,8 @@ class MiniModeTestCase(unittest.TestCase):
         self.assertEqual(window.findChildren(BigCheckBox), [])
         # 迷你窗口不显示在任务栏（Qt.Tool），退出后恢复
         self.assertTrue((window.windowFlags() & Qt.Tool) == Qt.Tool)
-        # 迷你窗口始终置顶（保证可见可点）
-        self.assertTrue(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        # 迷你窗口不置顶（降低存在感）
+        self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
 
         window._exit_mini_mode()
         self.assertFalse((window.windowFlags() & Qt.Tool) == Qt.Tool)
@@ -89,15 +89,15 @@ class MiniModeTestCase(unittest.TestCase):
         window = MainWindow()
         window._enter_mini_mode()
         self.assertFalse(window.data["settings"].get("mini_pinned", False))
-        # 迷你窗口始终置顶（保证可见可点）
-        self.assertTrue(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        # 迷你窗口不置顶（降低存在感）
+        self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
         self.assertTrue((window.windowFlags() & Qt.Tool) == Qt.Tool)
 
         window._toggle_mini_pin()
         self.assertTrue(window.data["settings"]["mini_pinned"])
         self.assertIn("QPushButton", window.mini_pin_btn.styleSheet())
-        # 固定只锁定拖动，不影响置顶
-        self.assertTrue(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        # 固定只锁定拖动，与置顶无关
+        self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
         # 固定后按下鼠标不应开始拖动
         event = QMouseEvent(
             QEvent.MouseButtonPress,
