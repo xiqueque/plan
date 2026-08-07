@@ -725,7 +725,7 @@ class MainWindow(QMainWindow):
         box.setWindowTitle("完成任务")
         box.setIcon(QMessageBox.Question)
         box.setText("你确定完成任务了吗( •̀ ω •́ )✧")
-        box.setFont(QFont("Microsoft YaHei", 10))
+        box.setFont(QFont("Microsoft YaHei", 13, QFont.Bold))
         yes_btn = box.addButton("确定(●'◡'●)", QMessageBox.AcceptRole)
         box.addButton("我再想想¯\\_(ツ)_/¯", QMessageBox.RejectRole)
         box.exec()
@@ -739,7 +739,7 @@ class MainWindow(QMainWindow):
         box.setWindowTitle("太棒了")
         box.setIcon(QMessageBox.Information)
         box.setText(message)
-        box.setFont(QFont("Microsoft YaHei", 10))
+        box.setFont(QFont("Microsoft YaHei", 13, QFont.Bold))
         box.addButton("好的！", QMessageBox.AcceptRole)
         box.exec()
 
