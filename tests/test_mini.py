@@ -78,6 +78,19 @@ class MiniModeTestCase(unittest.TestCase):
 
         window._exit_mini_mode()
 
+    def test_mini_pin_toggle(self):
+        window = MainWindow()
+        window._enter_mini_mode()
+        self.assertFalse(window.data["settings"].get("mini_pinned", False))
+
+        window._toggle_mini_pin()
+        self.assertTrue(window.data["settings"]["mini_pinned"])
+        self.assertIn("QPushButton", window.mini_pin_btn.styleSheet())
+
+        window._toggle_mini_pin()
+        self.assertFalse(window.data["settings"]["mini_pinned"])
+        window._exit_mini_mode()
+
 
 if __name__ == "__main__":
     unittest.main()

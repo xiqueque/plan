@@ -362,6 +362,9 @@ class MainWindow(QMainWindow):
         self.resize(320, 240)
         if geo is not None:
             self.move(geo.right() - self.width() - 24, geo.top() + 24)
+        self.setWindowFlag(
+            Qt.WindowStaysOnTopHint, self._full_topmost() or self._mini_pinned()
+        )
         self.show()
 
     def _exit_mini_mode(self) -> None:
@@ -373,6 +376,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._full_central)
         self.setWindowOpacity(1.0)
         self.setMinimumSize(480, 340)
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, self._full_topmost())
         if self._full_geometry is not None:
             self.setGeometry(self._full_geometry)
         self._mini_mode = False
@@ -406,6 +410,12 @@ class MainWindow(QMainWindow):
         date_col.addWidget(sub_date)
         header.addLayout(date_col)
         header.addStretch(1)
+        self.mini_pin_btn = QPushButton("…")
+        self.mini_pin_btn.setObjectName("winBtn")
+        self.mini_pin_btn.setToolTip("固定（置顶）")
+        self.mini_pin_btn.clicked.connect(self._toggle_mini_pin)
+        header.addWidget(self.mini_pin_btn, 0, Qt.AlignTop)
+        self._update_mini_pin_style()
         expand_btn = QPushButton("↗ 展开")
         expand_btn.setObjectName("smallBtn")
         expand_btn.clicked.connect(self._exit_mini_mode)
@@ -518,6 +528,34 @@ class MainWindow(QMainWindow):
         if checked:
             self._play_check_sound()
         self._refresh_mini_tasks()
+
+    def _full_topmost(self) -> bool:
+        return bool(self.data.get("settings", {}).get("topmost", False))
+
+    def _mini_pinned(self) -> bool:
+        return bool(self.data.get("settings", {}).get("mini_pinned", False))
+
+    def _toggle_mini_pin(self) -> None:
+        settings = self.data.setdefault("settings", {})
+        settings["mini_pinned"] = not settings.get("mini_pinned", False)
+        storage.save_data(self.data)
+        self.setWindowFlag(
+            Qt.WindowStaysOnTopHint, self._full_topmost() or self._mini_pinned()
+        )
+        self.show()
+        self._update_mini_pin_style()
+
+    def _update_mini_pin_style(self) -> None:
+        pinned = self._mini_pinned()
+        self.mini_pin_btn.setToolTip("取消固定" if pinned else "固定（置顶）")
+        if pinned:
+            self.mini_pin_btn.setStyleSheet(
+                f"QPushButton {{ background:{self.theme.button}; "
+                f"border:1px solid {self.theme.border}; border-radius:6px; "
+                "padding:2px 8px; font-size:15px; }"
+            )
+        else:
+            self.mini_pin_btn.setStyleSheet("")
 
     def _hide_to_tray(self) -> None:
         self.hide()
