@@ -5,6 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -27,6 +28,7 @@ class SettingsDialog(QDialog):
         sound_file: str = "",
         sound_volume: int = 12,
         default_sound_name: str = "",
+        autostart_enabled: bool = False,
         on_preview=None,
     ):
         super().__init__(parent)
@@ -79,6 +81,11 @@ class SettingsDialog(QDialog):
         volume_row.addWidget(self.volume_label)
         layout.addLayout(volume_row)
 
+        # 开机自启动
+        self.autostart_check = QCheckBox("开机自动启动（到点提醒需要程序在运行）")
+        self.autostart_check.setChecked(autostart_enabled)
+        layout.addWidget(self.autostart_check)
+
         layout.addWidget(QLabel("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
 
         layout.addWidget(QLabel("注意：标记为「每天重复」的计划不会被自动删除。"))
@@ -124,3 +131,11 @@ class SettingsDialog(QDialog):
 
     def sound_volume(self) -> int:
         return self.volume_slider.value()
+
+    def values(self):
+        return (
+            self.days_spin.value(),
+            self.sound_path(),
+            self.sound_volume(),
+            self.autostart_check.isChecked(),
+        )

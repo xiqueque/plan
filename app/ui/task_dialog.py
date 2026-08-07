@@ -7,10 +7,12 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QDialogButtonBox,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QRadioButton,
     QTimeEdit,
     QVBoxLayout,
 )
@@ -53,8 +55,35 @@ class TaskDialog(QDialog):
         self.time_check.toggled.connect(self._update_time_enabled)
         self._update_time_enabled(False)
 
-        self.daily_check = QCheckBox("每天重复出现（每天自动出现在列表）")
-        layout.addWidget(self.daily_check)
+        # 提醒设置
+        reminder_box = QGroupBox("提醒")
+        reminder_layout = QVBoxLayout(reminder_box)
+        mode_row = QHBoxLayout()
+        self.mode_none = QRadioButton("不提醒")
+        self.mode_once = QRadioButton("仅当日提醒")
+        self.mode_daily = QRadioButton("每天提醒（每天自动出现在列表）")
+        self.reminder_group = QButtonGroup(self)
+        self.reminder_group.setExclusive(True)
+        self.reminder_group.addButton(self.mode_none)
+        self.reminder_group.addButton(self.mode_once)
+        self.reminder_group.addButton(self.mode_daily)
+        self.mode_none.setChecked(True)
+        mode_row.addWidget(self.mode_none)
+        mode_row.addWidget(self.mode_once)
+        mode_row.addWidget(self.mode_daily)
+        reminder_layout.addLayout(mode_row)
+
+        remind_time_row = QHBoxLayout()
+        remind_time_row.addWidget(QLabel("提醒时间："))
+        self.reminder_time_edit = QTimeEdit(QTime(8, 0))
+        self.reminder_time_edit.setDisplayFormat("HH:mm")
+        remind_time_row.addWidget(self.reminder_time_edit, 1)
+        reminder_layout.addLayout(remind_time_row)
+        layout.addWidget(reminder_box)
+        self.mode_none.toggled.connect(self._update_reminder_enabled)
+        self.mode_once.toggled.connect(self._update_reminder_enabled)
+        self.mode_daily.toggled.connect(self._update_reminder_enabled)
+        self._update_reminder_enabled()
 
         # 字体颜色选择
         color_row = QHBoxLayout()
@@ -92,21 +121,47 @@ class TaskDialog(QDialog):
                 self.start_edit.setTime(QTime.fromString(task["time_start"], "HH:mm"))
                 if task.get("time_end"):
                     self.end_edit.setTime(QTime.fromString(task["time_end"], "HH:mm"))
-            self.daily_check.setChecked(bool(task.get("is_daily")))
+            mode = task.get("reminder_mode") or (
+                "daily" if task.get("is_daily") else "none"
+            )
+            if mode == "daily":
+                self.mode_daily.setChecked(True)
+            elif mode == "once":
+                self.mode_once.setChecked(True)
+            else:
+                self.mode_none.setChecked(True)
+            if task.get("reminder_time"):
+                self.reminder_time_edit.setTime(
+                    QTime.fromString(task["reminder_time"], "HH:mm")
+                )
         self._select_color((task or {}).get("color") or "#1F3A4D")
 
     def _update_time_enabled(self, enabled: bool) -> None:
         self.start_edit.setEnabled(enabled)
         self.end_edit.setEnabled(enabled)
 
+    def _update_reminder_enabled(self) -> None:
+        enabled = not self.mode_none.isChecked()
+        self.reminder_time_edit.setEnabled(enabled)
+
     def values(self):
-        """返回 (内容, 开始时间, 结束时间, 是否每天重复)。"""
+        """返回 (内容, 开始, 结束, 是否每天出现, 提醒模式, 提醒时间)。"""
         text = self.text_edit.text().strip()
         start = end = None
         if self.time_check.isChecked():
             start = self.start_edit.time().toString("HH:mm")
             end = self.end_edit.time().toString("HH:mm")
-        return text, start, end, self.daily_check.isChecked()
+        mode = "none"
+        if self.mode_once.isChecked():
+            mode = "once"
+        elif self.mode_daily.isChecked():
+            mode = "daily"
+        remind_time = (
+            self.reminder_time_edit.time().toString("HH:mm")
+            if mode != "none"
+            else None
+        )
+        return text, start, end, mode == "daily", mode, remind_time
 
     def _select_color(self, hex_color: str) -> None:
         self._selected_color_value = hex_color

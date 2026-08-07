@@ -30,16 +30,22 @@ def new_task(
     time_end: str | None = None,
     is_daily: bool = False,
     color: str = "#1F3A4D",
+    reminder_mode: str = "none",
+    reminder_time: str | None = None,
 ) -> dict:
     """创建一个新任务字典。"""
+    if reminder_mode == "daily":
+        is_daily = True
     return {
         "id": new_task_id(),
         "text": text.strip(),
         "date": date_str,
         "time_start": time_start or None,
         "time_end": time_end or None,
-        "is_daily": bool(is_daily),
+        "is_daily": is_daily or reminder_mode == "daily",
         "color": color or "#1F3A4D",
+        "reminder_mode": reminder_mode or ("daily" if is_daily else "none"),
+        "reminder_time": reminder_time or None,
         "pinned": False,
         "pinned_at": None,
         "created_at": time.time(),
@@ -47,7 +53,7 @@ def new_task(
 
 
 def empty_data() -> dict:
-    return {"settings": dict(DEFAULT_SETTINGS), "tasks": [], "done": {}}
+    return {"settings": dict(DEFAULT_SETTINGS), "tasks": [], "done": {}, "reminded": {}}
 
 
 def load_data() -> dict:
@@ -66,12 +72,20 @@ def load_data() -> dict:
     data.setdefault("settings", dict(DEFAULT_SETTINGS))
     data.setdefault("tasks", [])
     data.setdefault("done", {})
+    data.setdefault("reminded", {})
     settings = data["settings"]
     # 兼容旧版本：check_sound -> sound_file
     if "check_sound" in settings and "sound_file" not in settings:
         settings["sound_file"] = settings.pop("check_sound")
     settings.setdefault("sound_file", "")
     settings.setdefault("sound_volume", 12)
+    # 旧数据迁移：is_daily -> reminder_mode；补全提醒字段
+    for task in data["tasks"]:
+        if "reminder_mode" not in task:
+            task["reminder_mode"] = "daily" if task.get("is_daily") else "none"
+        if "reminder_time" not in task:
+            task["reminder_time"] = None
+        task["is_daily"] = task.get("reminder_mode") == "daily"
     return data
 
 
@@ -124,6 +138,17 @@ def set_done(data: dict, task_id: str, date_str: str, done: bool) -> None:
         day.pop(task_id, None)
 
 
+def is_reminded(data: dict, task_id: str, date_str: str) -> bool:
+    """当天该任务是否已提醒过。"""
+    return bool(data.get("reminded", {}).get(date_str, {}).get(task_id))
+
+
+def mark_reminded(data: dict, task_id: str, date_str: str, time_str: str) -> None:
+    """记录当天该任务已在某时间提醒过（防止重复提醒）。"""
+    day = data.setdefault("reminded", {}).setdefault(date_str, {})
+    day[task_id] = time_str
+
+
 def run_cleanup(data: dict) -> int:
     """自动清理：删除超过 N 天的非每天任务及过期完成记录，返回删除数量。"""
     try:
@@ -140,4 +165,7 @@ def run_cleanup(data: dict) -> int:
             kept.append(task)
     data["tasks"] = kept
     data["done"] = {d: v for d, v in data.get("done", {}).items() if d >= cutoff}
+    data["reminded"] = {
+        d: v for d, v in data.get("reminded", {}).items() if d >= cutoff
+    }
     return removed

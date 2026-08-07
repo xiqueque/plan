@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QUrl, QVariantAnimation
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -22,8 +22,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import storage
+from ..core import autostart, storage
+from ..core.reminder import ReminderScheduler
 from .calendar_dialog import CalendarDialog
+from .reminder_popup import ReminderPopup
 from .settings_dialog import SettingsDialog
 from .task_dialog import TaskDialog
 
@@ -200,6 +202,13 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self.refresh()
 
+        # 提醒调度
+        self._popups = []
+        self._scheduler = ReminderScheduler(self)
+        self._scheduler.reminderReady.connect(self._on_reminder)
+        self._scheduler.set_data(self.data)
+        self._scheduler.check()
+
     # ---------- 界面构建 ----------
     def _build_ui(self) -> None:
         central = QWidget()
@@ -340,6 +349,8 @@ class MainWindow(QMainWindow):
                 time_text += f" – {task['time_end']}"
         if task.get("is_daily"):
             time_text = (time_text + "  ·  " if time_text else "") + "每天"
+        if task.get("reminder_time"):
+            time_text += ("  ·  " if time_text else "") + "提醒 " + task["reminder_time"]
         if time_text:
             time_label = QLabel(time_text)
             time_label.setObjectName("timeLabel")
@@ -510,11 +521,18 @@ class MainWindow(QMainWindow):
         dialog = TaskDialog(self)
         if dialog.exec() != TaskDialog.Accepted:
             return
-        text, start, end, is_daily = dialog.values()
+        text, start, end, is_daily, mode, remind_time = dialog.values()
         if not text:
             return
         task = storage.new_task(
-            text, self.current_date.isoformat(), start, end, is_daily, dialog.selected_color()
+            text,
+            self.current_date.isoformat(),
+            start,
+            end,
+            is_daily,
+            dialog.selected_color(),
+            mode,
+            remind_time,
         )
         self.data["tasks"].append(task)
         storage.save_data(self.data)
@@ -524,16 +542,43 @@ class MainWindow(QMainWindow):
         dialog = TaskDialog(self, task)
         if dialog.exec() != TaskDialog.Accepted:
             return
-        text, start, end, is_daily = dialog.values()
+        text, start, end, is_daily, mode, remind_time = dialog.values()
         if not text:
             return
         task["text"] = text
         task["time_start"] = start
         task["time_end"] = end
         task["is_daily"] = is_daily
+        task["reminder_mode"] = mode
+        task["reminder_time"] = remind_time
         task["color"] = dialog.selected_color()
         storage.save_data(self.data)
         self._rebuild_list()
+
+    def _on_reminder(self, task: dict) -> None:
+        storage.save_data(self.data)  # 保存已提醒记录，防止重复
+        self._show_reminder_popup(task)
+
+    def _show_reminder_popup(self, task: dict) -> None:
+        popup = ReminderPopup(task)
+        popup.closed.connect(lambda: self._popup_closed(popup))
+        self._popups.append(popup)
+
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        geo = screen.availableGeometry() if screen else None
+        margin = 16
+        index = len(self._popups) - 1
+        if geo is not None:
+            x = geo.right() - popup.width() - margin
+            y = geo.bottom() - (index + 1) * (popup.height() + 10) - margin
+            popup.move(max(geo.left() + margin, x), max(geo.top() + margin, y))
+        popup.show()
+        popup.slide_in()
+        self._play_sound_file()
+
+    def _popup_closed(self, popup) -> None:
+        if popup in self._popups:
+            self._popups.remove(popup)
 
     def _delete_task(self, task: dict) -> None:
         box = QMessageBox(self)
@@ -581,14 +626,23 @@ class MainWindow(QMainWindow):
             settings.get("sound_file", ""),
             settings.get("sound_volume", 12),
             DEFAULT_SOUND_FILE.name if DEFAULT_SOUND_FILE.exists() else "",
+            autostart.is_enabled(),
             self._play_sound_file,
         )
         if dialog.exec() != SettingsDialog.Accepted:
             return
-        settings["cleanup_days"] = dialog.cleanup_days()
-        settings["sound_file"] = dialog.sound_path()
-        settings["sound_volume"] = dialog.sound_volume()
+        days, sound_path, volume, start_on_boot = dialog.values()
+        settings["cleanup_days"] = days
+        settings["sound_file"] = sound_path
+        settings["sound_volume"] = volume
         storage.save_data(self.data)
+        try:
+            if start_on_boot:
+                autostart.enable()
+            else:
+                autostart.disable()
+        except OSError:
+            QMessageBox.warning(self, "开机自启", "设置开机自启动失败，请稍后重试。")
         removed = storage.run_cleanup(self.data)
         if removed:
             storage.save_data(self.data)
@@ -667,6 +721,8 @@ class MainWindow(QMainWindow):
             extra.append(t)
         if task.get("is_daily"):
             extra.append("每天")
+        if task.get("reminder_time"):
+            extra.append(f"提醒 {task['reminder_time']}")
         if task.get("pinned"):
             extra.append("置顶")
         if extra:

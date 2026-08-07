@@ -1,18 +1,22 @@
 """每日计划 —— 程序入口。
 
-运行方式：在项目根目录执行  python -m app.main
+运行方式：
+  python -m app.main      （在项目根目录）
+  pythonw app\\main.py     （任意目录，供开机自启 / 桌面快捷方式使用）
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QLockFile
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication, QMessageBox
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from .core import storage
-from .ui.main_window import MainWindow
+from PySide6.QtCore import QLockFile  # noqa: E402
+from PySide6.QtGui import QIcon  # noqa: E402
+from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
+
+from app.core import storage  # noqa: E402
+from app.ui.main_window import MainWindow  # noqa: E402
 
 ICON_FILE = Path(__file__).resolve().parent / "assets" / "app_icon.ico"
 
