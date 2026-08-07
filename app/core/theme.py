@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import random
+import sys
 import colorsys
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,7 +10,11 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QImage
 
-THEME_FOLDER = Path(r"C:\Users\Junhong\Pictures\peise")
+if getattr(sys, "frozen", False):
+    # 打包后：配色文件夹随 exe 分发（exe 同目录 peise）
+    THEME_FOLDER = Path(sys.executable).resolve().parent / "peise"
+else:
+    THEME_FOLDER = Path(r"C:\Users\Junhong\Pictures\peise")
 DEFAULT_THEME_ID = "默认淡蓝"
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
 THEME_NAMES = [
