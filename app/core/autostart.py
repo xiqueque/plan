@@ -11,6 +11,8 @@ APP_NAME = "每日计划"
 
 def _command() -> str:
     """生成启动命令：pythonw + 入口脚本绝对路径（不依赖当前目录）。"""
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
     python = Path(sys.executable)
     if python.name.lower() == "python.exe":
         python = python.with_name("pythonw.exe")

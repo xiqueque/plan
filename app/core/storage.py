@@ -4,13 +4,18 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import time
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
 
-# 用户数据目录：app/data（与源码同级，不纳入版本管理）
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# 用户数据目录：开发时 app/data；打包后为 exe 同目录下的 data
+if getattr(sys, "frozen", False):
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
 DATA_FILE = DATA_DIR / "plan.json"
 IMAGES_DIR = DATA_DIR / "images"
 

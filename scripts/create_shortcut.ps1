@@ -6,11 +6,15 @@ $desktop = [Environment]::GetFolderPath('Desktop')
 $pythonw = 'C:\Users\Junhong\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\pythonw.exe'
 $icon = Join-Path $projectRoot 'app\assets\app_icon.ico'
 $mainScript = Join-Path $projectRoot 'app\main.py'
+$exe = Join-Path $projectRoot 'dist\每日计划.exe'
 $lnkPath = Join-Path $desktop '每日计划.lnk'
 
 $ws = New-Object -ComObject WScript.Shell
 $lnk = $ws.CreateShortcut($lnkPath)
-if (Test-Path $pythonw) {
+if (Test-Path $exe) {
+    $lnk.TargetPath = $exe
+    $lnk.Arguments = ''
+} elseif (Test-Path $pythonw) {
     $lnk.TargetPath = $pythonw
     $lnk.Arguments = '"' + $mainScript + '"'
 } else {

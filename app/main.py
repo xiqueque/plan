@@ -18,7 +18,10 @@ from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
 from app.core import storage  # noqa: E402
 from app.ui.main_window import MainWindow  # noqa: E402
 
-ICON_FILE = Path(__file__).resolve().parent / "assets" / "app_icon.ico"
+if getattr(sys, "frozen", False):
+    ICON_FILE = Path(__file__).resolve().parent / "app" / "assets" / "app_icon.ico"
+else:
+    ICON_FILE = Path(__file__).resolve().parent / "assets" / "app_icon.ico"
 
 
 def main() -> int:
