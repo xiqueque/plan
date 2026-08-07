@@ -25,7 +25,7 @@ class SettingsDialog(QDialog):
         parent=None,
         cleanup_days: int = 15,
         sound_file: str = "",
-        sound_volume: int = 80,
+        sound_volume: int = 50,
         default_sound_name: str = "",
         on_preview=None,
     ):
@@ -70,7 +70,7 @@ class SettingsDialog(QDialog):
         volume_row.addWidget(QLabel("音效音量："))
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(sound_volume if 0 <= sound_volume <= 100 else 80)
+        self.volume_slider.setValue(sound_volume if 0 <= sound_volume <= 100 else 50)
         self.volume_label = QLabel(f"{self.volume_slider.value()}%")
         self.volume_slider.valueChanged.connect(
             lambda v: self.volume_label.setText(f"{v}%")

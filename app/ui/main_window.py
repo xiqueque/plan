@@ -36,7 +36,7 @@ except Exception:
 
 WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
 SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "check.wav"
-DEFAULT_SOUND_FILE = Path(r"C:\Users\Junhong\Music\8月7日.mp3")
+DEFAULT_SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "8月7日_裁剪.wav"
 BASE_TASK_FONT_PX = 18
 
 APP_QSS = """
@@ -448,9 +448,9 @@ class MainWindow(QMainWindow):
 
         if volume is None:
             try:
-                volume = int(self.data.get("settings", {}).get("sound_volume", 80))
+                volume = int(self.data.get("settings", {}).get("sound_volume", 50))
             except (TypeError, ValueError):
-                volume = 80
+                volume = 50
         volume = max(0, min(100, volume))
 
         # 首选 Qt 多媒体（支持 wav / mp3）
@@ -579,7 +579,7 @@ class MainWindow(QMainWindow):
             self,
             settings.get("cleanup_days", 15),
             settings.get("sound_file", ""),
-            settings.get("sound_volume", 80),
+            settings.get("sound_volume", 50),
             DEFAULT_SOUND_FILE.name if DEFAULT_SOUND_FILE.exists() else "",
             self._play_sound_file,
         )
