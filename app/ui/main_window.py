@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -52,7 +54,7 @@ QLabel#emptyLabel {
 }
 QLabel#taskText {
     font-size: 18px;
-    font-weight: 500;
+    font-weight: 600;
 }
 QLabel#timeLabel {
     font-size: 13px;
@@ -106,6 +108,20 @@ class BigCheckBox(QCheckBox):
         super().__init__(parent)
         self.setFixedSize(30, 30)
         self.setCursor(Qt.PointingHandCursor)
+        self.setMouseTracking(True)
+        self._hover = False
+
+    def hitButton(self, pos) -> bool:
+        """让整个 30x30 区域都可点击（修复只能点中心小范围的问题）。"""
+        return self.rect().contains(pos)
+
+    def enterEvent(self, event):
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, event):
+        self._hover = False
+        self.update()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -113,11 +129,12 @@ class BigCheckBox(QCheckBox):
         w = float(self.width())
         h = float(self.height())
         rect = QRectF(1.5, 1.5, w - 3.0, h - 3.0)
+        border_color = "#3B7DBF" if self._hover else "#7FB8D4"
         if self.isChecked():
-            painter.setPen(QPen(QColor("#5FA8CC"), 2))
+            painter.setPen(QPen(QColor(border_color), 2))
             painter.setBrush(QColor("#7FB8D4"))
         else:
-            painter.setPen(QPen(QColor("#7FB8D4"), 2))
+            painter.setPen(QPen(QColor(border_color), 2))
             painter.setBrush(QColor("#FFFFFF"))
         painter.drawRoundedRect(rect, 8, 8)
         if self.isChecked():
@@ -208,9 +225,13 @@ class MainWindow(QMainWindow):
         self.add_btn = QPushButton("＋ 添加计划")
         self.add_btn.setObjectName("primary")
         self.add_btn.clicked.connect(self.add_task)
+        self.screenshot_btn = QPushButton("截图")
+        self.screenshot_btn.setToolTip("生成今天的计划截图，保存为图片发送到手机")
+        self.screenshot_btn.clicked.connect(self.export_screenshot)
         self.settings_btn = QPushButton("设置")
         self.settings_btn.clicked.connect(self.open_settings)
         bottom.addWidget(self.add_btn, 1)
+        bottom.addWidget(self.screenshot_btn)
         bottom.addWidget(self.settings_btn)
         root.addLayout(bottom)
 
@@ -269,9 +290,6 @@ class MainWindow(QMainWindow):
         check.blockSignals(True)
         check.setChecked(done)
         check.blockSignals(False)
-        check.toggled.connect(
-            lambda checked, t=task: self._on_toggle_done(t, date_str, checked)
-        )
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
@@ -279,6 +297,11 @@ class MainWindow(QMainWindow):
         text_label.setWordWrap(True)
         text_label.setObjectName("taskText")
         text_col.addWidget(text_label)
+        check.toggled.connect(
+            lambda checked, t=task, lbl=text_label: self._on_toggle_done(
+                t, date_str, checked, lbl
+            )
+        )
 
         time_text = ""
         if task.get("time_start"):
@@ -310,17 +333,28 @@ class MainWindow(QMainWindow):
         lay.addWidget(del_btn)
 
         if done:
-            text_label.setStyleSheet("color:#9AA5AC; text-decoration: line-through;")
+            text_label.setStyleSheet(
+                "color:#9AA5AC; text-decoration: line-through; font-weight:600;"
+            )
         else:
             color = task.get("color") or "#1F3A4D"
-            text_label.setStyleSheet(f"color:{color};")
+            text_label.setStyleSheet(f"color:{color}; font-weight:600;")
         return row
 
     # ---------- 操作 ----------
-    def _on_toggle_done(self, task: dict, date_str: str, checked: bool) -> None:
+    def _on_toggle_done(
+        self, task: dict, date_str: str, checked: bool, text_label: QLabel
+    ) -> None:
         storage.set_done(self.data, task["id"], date_str, checked)
         storage.save_data(self.data)
-        self._rebuild_list(keep_scroll=True)
+        # 只更新文字样式，不重建列表：勾选更跟手、不跳动
+        if checked:
+            text_label.setStyleSheet(
+                "color:#9AA5AC; text-decoration: line-through; font-weight:600;"
+            )
+        else:
+            color = task.get("color") or "#1F3A4D"
+            text_label.setStyleSheet(f"color:{color}; font-weight:600;")
 
     def _on_toggle_pin(self, task: dict) -> None:
         task["pinned"] = not task.get("pinned")
@@ -406,3 +440,85 @@ class MainWindow(QMainWindow):
             storage.save_data(self.data)
             QMessageBox.information(self, "清理完成", f"已自动清理 {removed} 条过期计划。")
         self._rebuild_list()
+
+    # ---------- 截图导出 ----------
+    def export_screenshot(self) -> None:
+        date_str = self.current_date.isoformat()
+        tasks = storage.tasks_for_date(self.data, date_str)
+        if not tasks:
+            QMessageBox.information(self, "截图", "这一天还没有计划，先添加几条再截图吧。")
+            return
+
+        widget = self._build_export_widget(date_str, tasks)
+        widget.setMinimumWidth(560)
+        widget.adjustSize()
+        pixmap = widget.grab()
+
+        default_name = f"每日计划_{date_str}.png"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "保存每日计划截图", str(Path.home() / default_name), "PNG 图片 (*.png)"
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        if pixmap.save(path, "PNG"):
+            QMessageBox.information(self, "截图", f"截图已保存：\n{path}")
+        else:
+            QMessageBox.warning(self, "截图", "保存失败，请换个位置再试。")
+
+    def _build_export_widget(self, date_str: str, tasks: list) -> QWidget:
+        """生成一张干净的计划卡片（不含按钮，方便发手机查看）。"""
+        widget = QWidget()
+        widget.setStyleSheet("background:#EAF6FC;")
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(10)
+
+        header = QLabel(f"每日计划 · {self.format_date(self.current_date)}")
+        header.setStyleSheet(
+            "font-family:'幼圆','Microsoft YaHei'; font-size:22px; font-weight:bold; "
+            "color:#1F3A4D;"
+        )
+        layout.addWidget(header)
+
+        for task in tasks:
+            layout.addWidget(self._make_export_row(task, date_str))
+        return widget
+
+    def _make_export_row(self, task: dict, date_str: str) -> QFrame:
+        row = QFrame()
+        row.setStyleSheet(
+            "QFrame { background:white; border:1px solid #D5E8F2; border-radius:10px; }"
+        )
+        lay = QHBoxLayout(row)
+        lay.setContentsMargins(14, 8, 14, 8)
+        lay.setSpacing(8)
+
+        done = storage.is_done(self.data, task["id"], date_str)
+        color = "#9AA5AC" if done else (task.get("color") or "#1F3A4D")
+        text = QLabel(task.get("text", ""))
+        deco = " text-decoration: line-through;" if done else ""
+        text.setStyleSheet(
+            f"font-family:'幼圆','Microsoft YaHei'; font-size:18px; font-weight:600; "
+            f"color:{color};{deco}"
+        )
+        lay.addWidget(text, 1)
+
+        extra = []
+        if task.get("time_start"):
+            t = task["time_start"]
+            if task.get("time_end"):
+                t += f"–{task['time_end']}"
+            extra.append(t)
+        if task.get("is_daily"):
+            extra.append("每天")
+        if task.get("pinned"):
+            extra.append("置顶")
+        if extra:
+            tag = QLabel("  ".join(extra))
+            tag.setStyleSheet(
+                "font-family:'幼圆','Microsoft YaHei'; font-size:14px; color:#6B8CA3;"
+            )
+            lay.addWidget(tag)
+        return row
