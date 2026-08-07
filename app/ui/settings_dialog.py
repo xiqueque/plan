@@ -6,11 +6,13 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
     QSlider,
     QSpinBox,
@@ -31,6 +33,7 @@ class SettingsDialog(QDialog):
         sound_volume: int = 12,
         default_sound_name: str = "",
         autostart_enabled: bool = False,
+        image_viewer: str = "",
         on_preview=None,
     ):
         super().__init__(parent)
@@ -89,6 +92,24 @@ class SettingsDialog(QDialog):
         self.autostart_check.setChecked(autostart_enabled)
         layout.addWidget(self.autostart_check)
 
+        # 图片打开方式
+        viewer_row = QHBoxLayout()
+        viewer_row.addWidget(QLabel("图片打开方式："))
+        self.viewer_combo = QComboBox()
+        self.viewer_combo.addItems(["系统默认程序", "自定义程序"])
+        self.viewer_path_edit = QLineEdit(image_viewer or "")
+        self.viewer_path_edit.setPlaceholderText("选择程序，如画图 mspaint.exe")
+        self.viewer_browse_btn = QPushButton("浏览…")
+        self.viewer_browse_btn.clicked.connect(self._browse_viewer)
+        self.viewer_combo.currentIndexChanged.connect(self._update_viewer_enabled)
+        viewer_row.addWidget(self.viewer_combo)
+        viewer_row.addWidget(self.viewer_path_edit, 1)
+        viewer_row.addWidget(self.viewer_browse_btn)
+        layout.addLayout(viewer_row)
+        if image_viewer:
+            self.viewer_combo.setCurrentIndex(1)
+        self._update_viewer_enabled()
+
         layout.addWidget(QLabel("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
 
         layout.addWidget(QLabel("注意：标记为「每天重复」的计划不会被自动删除。"))
@@ -135,10 +156,28 @@ class SettingsDialog(QDialog):
     def sound_volume(self) -> int:
         return self.volume_slider.value()
 
+    def _update_viewer_enabled(self) -> None:
+        custom = self.viewer_combo.currentIndex() == 1
+        self.viewer_path_edit.setEnabled(custom)
+        self.viewer_browse_btn.setEnabled(custom)
+
+    def _browse_viewer(self) -> None:
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择图片程序", str(Path.home()), "程序 (*.exe)"
+        )
+        if path:
+            self.viewer_path_edit.setText(path)
+
+    def image_viewer(self) -> str:
+        if self.viewer_combo.currentIndex() != 1:
+            return ""
+        return self.viewer_path_edit.text().strip()
+
     def values(self):
         return (
             self.days_spin.value(),
             self.sound_path(),
             self.sound_volume(),
             self.autostart_check.isChecked(),
+            self.image_viewer(),
         )

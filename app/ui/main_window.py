@@ -279,12 +279,17 @@ class MainWindow(QMainWindow):
 
         # 独立图片区
         img_header = QHBoxLayout()
-        img_title = QLabel("图片")
-        img_title.setStyleSheet("font-size:15px; font-weight:bold;")
+        self.img_toggle_btn = QPushButton("▸ 图片")
+        self.img_toggle_btn.setObjectName("smallBtn")
+        self.img_toggle_btn.setCheckable(True)
+        self.img_toggle_btn.clicked.connect(self._toggle_images)
+        self.img_count_label = QLabel("0 张")
+        self.img_count_label.setStyleSheet("color:#6B8CA3; font-size:13px;")
         img_add = QPushButton("＋ 添加图片")
         img_add.setObjectName("smallBtn")
         img_add.clicked.connect(self.add_day_images)
-        img_header.addWidget(img_title)
+        img_header.addWidget(self.img_toggle_btn)
+        img_header.addWidget(self.img_count_label)
         img_header.addStretch(1)
         img_header.addWidget(img_add)
         root.addLayout(img_header)
@@ -299,6 +304,7 @@ class MainWindow(QMainWindow):
         self.image_layout.setSpacing(6)
         self.image_layout.addStretch(1)
         self.image_scroll.setWidget(self.image_container)
+        self.image_scroll.hide()  # 默认折叠，只留一行
         root.addWidget(self.image_scroll)
 
         # 计划列表（滚动区域）
@@ -699,18 +705,29 @@ class MainWindow(QMainWindow):
 
         date_str = self.current_date.isoformat()
         names = self.data.get("day_images", {}).get(date_str, [])
+        self.img_count_label.setText(f"{len(names)} 张")
         if not names:
             hint = QLabel("暂无图片，点右上角「添加图片」可放课程表等图片")
             hint.setStyleSheet("color:#6B8CA3; padding:8px;")
             self.image_layout.insertWidget(0, hint)
             return
+        show_delete = len(names) > 1  # 只剩一张时不允许删除
         for name in names:
             path = storage.image_path(name)
             if not path.exists():
                 continue
-            thumb = ThumbButton(path)
+            display = self.data.get("image_names", {}).get(name, name)
+            thumb = ThumbButton(path, display_name=display, show_delete=show_delete)
             thumb.deleted.connect(lambda n=name: self._delete_day_image(n))
+            thumb.renamed.connect(
+                lambda n, new: self._rename_day_image(n, new)
+            )
             self.image_layout.insertWidget(self.image_layout.count() - 1, thumb)
+
+    def _toggle_images(self) -> None:
+        show = self.img_toggle_btn.isChecked()
+        self.image_scroll.setVisible(show)
+        self.img_toggle_btn.setText("▾ 图片" if show else "▸ 图片")
 
     def add_day_images(self) -> None:
         paths, _ = QFileDialog.getOpenFileNames(
@@ -732,9 +749,20 @@ class MainWindow(QMainWindow):
         day = self.data.get("day_images", {}).get(date_str, [])
         if name not in day:
             return
+        if len(day) <= 1:
+            QMessageBox.information(
+                self, "删除图片", "图片区至少需要保留一张图片，不能删除。"
+            )
+            return
         day.remove(name)
         if name not in storage.referenced_image_names(self.data):
             storage.delete_image_file(name)
+        storage.forget_image_display(name)
+        storage.save_data(self.data)
+        self._refresh_images()
+
+    def _rename_day_image(self, name: str, display: str) -> None:
+        self.data.setdefault("image_names", {})[name] = display
         storage.save_data(self.data)
         self._refresh_images()
 
@@ -747,14 +775,16 @@ class MainWindow(QMainWindow):
             settings.get("sound_volume", 12),
             DEFAULT_SOUND_FILE.name if DEFAULT_SOUND_FILE.exists() else "",
             autostart.is_enabled(),
+            settings.get("image_viewer", ""),
             self._play_sound_file,
         )
         if dialog.exec() != SettingsDialog.Accepted:
             return
-        days, sound_path, volume, start_on_boot = dialog.values()
+        days, sound_path, volume, start_on_boot, image_viewer = dialog.values()
         settings["cleanup_days"] = days
         settings["sound_file"] = sound_path
         settings["sound_volume"] = volume
+        settings["image_viewer"] = image_viewer
         storage.save_data(self.data)
         try:
             if start_on_boot:

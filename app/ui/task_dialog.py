@@ -24,8 +24,11 @@ from ..core.storage import (
     ALL_WEEKDAYS,
     WEEKDAY_NAMES,
     delete_image_file,
+    forget_image_display,
+    get_image_display_names,
     image_path,
     import_image,
+    set_image_display_name,
 )
 from .style import CHECKBOX_QSS
 from .thumb import IMAGE_FILTER, ThumbButton
@@ -134,6 +137,7 @@ class TaskDialog(QDialog):
         layout.addWidget(image_box)
         self._image_names: list[str] = []
         self._created_image_names: list[str] = []
+        self._display_names = get_image_display_names()
 
         # 字体颜色选择
         color_row = QHBoxLayout()
@@ -219,10 +223,19 @@ class TaskDialog(QDialog):
         if created:
             self._created_image_names.append(name)
         thumb = ThumbButton(image_path(name))
+        thumb.set_display_name(self._display_names.get(name, name))
         thumb.deleted.connect(
             lambda n=name, t=thumb: self._remove_image(n, t)
         )
+        thumb.renamed.connect(
+            lambda n, new, t=thumb: self._on_image_renamed(n, new, t)
+        )
         self.image_row.insertWidget(self.image_row.count() - 1, thumb)
+
+    def _on_image_renamed(self, name: str, new: str, thumb) -> None:
+        set_image_display_name(name, new)
+        self._display_names[name] = new
+        thumb.set_display_name(new)
 
     def _remove_image(self, name: str, thumb) -> None:
         if name in self._image_names:
@@ -230,6 +243,7 @@ class TaskDialog(QDialog):
         if name in self._created_image_names:
             self._created_image_names.remove(name)
             delete_image_file(name)
+        forget_image_display(name)
         thumb.deleteLater()
 
     def images(self) -> list:

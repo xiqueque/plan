@@ -14,7 +14,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILE = DATA_DIR / "plan.json"
 IMAGES_DIR = DATA_DIR / "images"
 
-DEFAULT_SETTINGS = {"cleanup_days": 15, "sound_volume": 12}
+DEFAULT_SETTINGS = {"cleanup_days": 15, "sound_volume": 12, "image_viewer": ""}
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 ALL_WEEKDAYS = list(range(7))
 
@@ -69,6 +69,7 @@ def empty_data() -> dict:
         "done": {},
         "reminded": {},
         "day_images": {},
+        "image_names": {},
     }
 
 
@@ -90,12 +91,14 @@ def load_data() -> dict:
     data.setdefault("done", {})
     data.setdefault("reminded", {})
     data.setdefault("day_images", {})
+    data.setdefault("image_names", {})
     settings = data["settings"]
     # 兼容旧版本：check_sound -> sound_file
     if "check_sound" in settings and "sound_file" not in settings:
         settings["sound_file"] = settings.pop("check_sound")
     settings.setdefault("sound_file", "")
     settings.setdefault("sound_volume", 12)
+    settings.setdefault("image_viewer", "")
     # 旧数据迁移：is_daily -> reminder_mode；补全提醒字段
     for task in data["tasks"]:
         if "reminder_mode" not in task:
@@ -217,6 +220,26 @@ def referenced_image_names(data: dict) -> set:
     return names
 
 
+def get_image_display_names() -> dict:
+    """读取图片显示名映射（文件名 -> 自定义名称）。"""
+    data = load_data()
+    return dict(data.get("image_names", {}))
+
+
+def set_image_display_name(name: str, display: str) -> None:
+    """保存图片自定义显示名。"""
+    data = load_data()
+    data.setdefault("image_names", {})[name] = display
+    save_data(data)
+
+
+def forget_image_display(name: str) -> None:
+    """删除图片时同步移除显示名记录。"""
+    data = load_data()
+    data.get("image_names", {}).pop(name, None)
+    save_data(data)
+
+
 def run_cleanup(data: dict) -> int:
     """自动清理：删除超过 N 天的非每天任务及过期完成记录，返回删除数量。"""
     try:
@@ -238,6 +261,9 @@ def run_cleanup(data: dict) -> int:
     }
     data["day_images"] = {
         d: v for d, v in data.get("day_images", {}).items() if d >= cutoff
+    }
+    data["image_names"] = {
+        k: v for k, v in data.get("image_names", {}).items() if k in referenced
     }
     # 删除未被任何任务/图片区引用的图片文件
     referenced = referenced_image_names(data)

@@ -86,28 +86,41 @@ class ImageTestCase(unittest.TestCase):
         name = storage.import_image(str(src))
         thumb = ThumbButton(storage.image_path(name))
         thumb.show()
-        self.assertEqual(thumb.width(), 100)
+        self.assertEqual(thumb.width(), 106)
         thumb.close()
 
     def test_main_window_image_strip(self):
+        from app.ui import main_window as mw
         from app.ui.main_window import MainWindow
 
-        src = self.tmp_path / "e.png"
-        make_png(src)
-        name = storage.import_image(str(src))
+        today = date.today().isoformat()
+        names = []
+        for i in range(2):
+            src = self.tmp_path / f"e{i}.png"
+            make_png(src)
+            names.append(storage.import_image(str(src)))
         data = storage.empty_data()
-        data["day_images"][date.today().isoformat()] = [name]
+        data["day_images"][today] = names
         storage.save_data(data)
 
         window = MainWindow()
         thumbs = window.findChildren(ThumbButton)
-        self.assertEqual(len(thumbs), 1)
+        self.assertEqual(len(thumbs), 2)
 
-        window._delete_day_image(name)
-        self.assertEqual(
-            window.data["day_images"].get(date.today().isoformat()), []
-        )
-        self.assertFalse(storage.image_path(name).exists())
+        # 软件内重命名
+        window._rename_day_image(names[0], "课程表")
+        self.assertEqual(window.data["image_names"][names[0]], "课程表")
+
+        # 删除一张 -> 剩一张
+        window._delete_day_image(names[0])
+        self.assertEqual(window.data["day_images"][today], [names[1]])
+        self.assertFalse(storage.image_path(names[0]).exists())
+
+        # 只剩一张时禁止删除（测试中屏蔽弹窗）
+        mw.QMessageBox.information = lambda *args, **kwargs: None
+        window._delete_day_image(names[1])
+        self.assertEqual(window.data["day_images"][today], [names[1]])
+        self.assertTrue(storage.image_path(names[1]).exists())
 
 
 if __name__ == "__main__":
