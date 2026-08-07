@@ -10,7 +10,7 @@ ASSETS = Path(__file__).resolve().parent.parent / "app" / "assets"
 SAMPLE_RATE = 44100
 
 
-def tone(freq: float, start_sec: float, dur_sec: float, volume: float = 0.45) -> list:
+def tone(freq: float, start_sec: float, dur_sec: float, volume: float = 0.85) -> list:
     """生成一个带指数衰减包络的正弦音。"""
     samples = []
     n = int(SAMPLE_RATE * dur_sec)
@@ -24,15 +24,21 @@ def tone(freq: float, start_sec: float, dur_sec: float, volume: float = 0.45) ->
 def main() -> None:
     ASSETS.mkdir(parents=True, exist_ok=True)
     # 可爱的上行两连音（类似弹跳“叮-咚”）
-    s1 = tone(740, 0.0, 0.10, 0.42)
-    s2 = tone(988, 0.08, 0.16, 0.42)
+    s1 = tone(740, 0.0, 0.10, 0.85)
+    s2 = tone(988, 0.08, 0.16, 0.85)
     total = max(len(s1), len(s2))
 
-    buf = bytearray()
+    mixed = []
     for i in range(total):
         v = (s1[i] if i < len(s1) else 0.0) + (s2[i] if i < len(s2) else 0.0)
-        v = max(-1.0, min(1.0, v))
-        buf += struct.pack("<h", int(v * 32767))
+        mixed.append(v)
+
+    # 归一化到接近满音量，避免叠加后削波失真
+    peak = max(1e-6, max(abs(v) for v in mixed))
+    scale = 0.96 / peak
+    buf = bytearray()
+    for v in mixed:
+        buf += struct.pack("<h", int(max(-1.0, min(1.0, v * scale)) * 32767))
 
     out = ASSETS / "check.wav"
     with wave.open(str(out), "wb") as w:
