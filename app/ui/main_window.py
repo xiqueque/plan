@@ -28,7 +28,7 @@ from .settings_dialog import SettingsDialog
 from .task_dialog import TaskDialog
 
 WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
-SOUND_FILE = Path(__file__).resolve().parent / "assets" / "check.wav"
+SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "check.wav"
 BASE_TASK_FONT_PX = 18
 
 APP_QSS = """
