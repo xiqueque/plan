@@ -368,7 +368,7 @@ class MainWindow(QMainWindow):
         if geo is not None:
             self.move(geo.right() - self.width() - 24, geo.top() + 24)
         self.setWindowFlag(Qt.Tool, True)  # 迷你窗口不显示在任务栏
-        self.setWindowFlag(Qt.WindowStaysOnTopHint, False)  # 迷你窗口不置顶
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, True)  # 迷你窗口始终置顶，保证可见可点
         self.show()
 
     def _exit_mini_mode(self) -> None:
@@ -579,6 +579,10 @@ class MainWindow(QMainWindow):
         super().mouseDoubleClickEvent(event)
 
     def mousePressEvent(self, event):
+        if self._mini_mode:
+            # 点击迷你窗口时确保它显示在最前面并可交互
+            self.raise_()
+            self.activateWindow()
         if self._mini_mode and self._mini_pinned():
             # 固定状态：锁定位置，不可拖动
             super().mousePressEvent(event)
