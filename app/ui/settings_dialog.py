@@ -48,6 +48,7 @@ class SettingsDialog(QDialog):
         minimize_action: str = "mini",
         close_action: str = "tray",
         mini_opacity: int = 80,
+        complete_message: str = "",
         on_preview=None,
     ):
         super().__init__(parent)
@@ -176,6 +177,15 @@ class SettingsDialog(QDialog):
         opacity_row.addWidget(self.opacity_label)
         layout.addLayout(opacity_row)
 
+        msg_row = QHBoxLayout()
+        msg_row.addWidget(QLabel("完成任务后的提示语："))
+        self.complete_msg_edit = QLineEdit(
+            complete_message
+            or "终于完成任务了耶o(*≧▽≦)ツ┏━┓！！！"
+        )
+        msg_row.addWidget(self.complete_msg_edit, 1)
+        layout.addLayout(msg_row)
+
         layout.addWidget(self._hint("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
 
         layout.addWidget(
@@ -259,4 +269,5 @@ class SettingsDialog(QDialog):
             self.minimize_combo.currentData() or "mini",
             self.close_combo.currentData() or "tray",
             self.opacity_slider.value(),
+            self.complete_msg_edit.text().strip(),
         )

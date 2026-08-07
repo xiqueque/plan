@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QUrl, QVariantAnimation
-from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QGuiApplication, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -357,11 +357,17 @@ class MainWindow(QMainWindow):
         self._mini_mode = True
         self.setCentralWidget(self._build_mini_widget())
         screen = self.screen() or QGuiApplication.primaryScreen()
-        geo = screen.availableGeometry() if screen else None
+        geo = None
+        if screen is not None:
+            try:
+                geo = screen.availableGeometry()
+            except AttributeError:
+                geo = None
         self.setMinimumSize(260, 180)
         self.resize(320, 240)
         if geo is not None:
             self.move(geo.right() - self.width() - 24, geo.top() + 24)
+        self.setWindowFlag(Qt.Tool, True)  # 迷你窗口不显示在任务栏
         self.setWindowFlag(Qt.WindowStaysOnTopHint, False)  # 迷你窗口不置顶
         self.show()
 
@@ -374,6 +380,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._full_central)
         self.setWindowOpacity(1.0)
         self.setMinimumSize(480, 340)
+        self.setWindowFlag(Qt.Tool, False)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, self._full_topmost())
         if self._full_geometry is not None:
             self.setGeometry(self._full_geometry)
@@ -484,26 +491,13 @@ class MainWindow(QMainWindow):
         done = storage.is_done(self.data, task["id"], date_str)
         color = "#9AA5AC" if done else (task.get("color") or self.theme.text)
         deco = " text-decoration: line-through;" if done else ""
-
-        row = QHBoxLayout()
-        row.setSpacing(4)
-        check = BigCheckBox(size=26)
-        check.blockSignals(True)
-        check.setChecked(done)
-        check.blockSignals(False)
-        check.toggled.connect(
-            lambda checked, t=task: self._on_mini_toggle(t, checked)
-        )
-        row.addWidget(check, 0, Qt.AlignTop)
-
-        text_col = QVBoxLayout()
-        text_col.setSpacing(2)
-        label = QLabel(task.get("text", ""))
+        mark = "✓ " if done else "□ "
+        label = QLabel(mark + task.get("text", ""))
         label.setWordWrap(True)
         label.setStyleSheet(
             f"font-size:16px; font-weight:bold; color:{color};{deco}"
         )
-        text_col.addWidget(label)
+        vbox.addWidget(label)
         time_text = ""
         if task.get("time_start"):
             time_text = task["time_start"]
@@ -512,20 +506,9 @@ class MainWindow(QMainWindow):
         if time_text:
             time_label = QLabel(time_text)
             time_label.setStyleSheet("color:#A8B4BF; font-size:12px;")
-            text_col.addWidget(time_label)
-        text_col.addStretch(1)
-        row.addLayout(text_col, 1)
-        vbox.addLayout(row)
+            vbox.addWidget(time_label)
+        vbox.addStretch(1)
         return cell
-
-    def _on_mini_toggle(self, task: dict, checked: bool) -> None:
-        storage.set_done(
-            self.data, task["id"], self.current_date.isoformat(), checked
-        )
-        storage.save_data(self.data)
-        if checked:
-            self._play_check_sound()
-        self._refresh_mini_tasks()
 
     def _full_topmost(self) -> bool:
         return bool(self.data.get("settings", {}).get("topmost", False))
@@ -674,8 +657,8 @@ class MainWindow(QMainWindow):
             text_line.addWidget(pin_icon, 0, Qt.AlignTop)
         text_col.addLayout(text_line)
         check.toggled.connect(
-            lambda checked, t=task, lbl=text_label: self._on_toggle_done(
-                t, date_str, checked, lbl
+            lambda checked, t=task, lbl=text_label, ck=check: self._on_toggle_done(
+                t, date_str, checked, lbl, ck
             )
         )
 
@@ -717,13 +700,48 @@ class MainWindow(QMainWindow):
 
     # ---------- 操作 ----------
     def _on_toggle_done(
-        self, task: dict, date_str: str, checked: bool, text_label: QLabel
+        self,
+        task: dict,
+        date_str: str,
+        checked: bool,
+        text_label: QLabel,
+        check_widget,
     ) -> None:
+        if checked and not self._confirm_complete():
+            # 用户反悔：恢复未勾选状态
+            check_widget.blockSignals(True)
+            check_widget.setChecked(False)
+            check_widget.blockSignals(False)
+            return
         storage.set_done(self.data, task["id"], date_str, checked)
         storage.save_data(self.data)
         if checked:
             self._play_check_sound()
+            self._show_completion_message()
         self._animate_task_text(text_label, task, checked)
+
+    def _confirm_complete(self) -> bool:
+        box = QMessageBox(self)
+        box.setWindowTitle("完成任务")
+        box.setIcon(QMessageBox.Question)
+        box.setText("你确定完成任务了吗( •̀ ω •́ )✧")
+        box.setFont(QFont("Microsoft YaHei", 10))
+        yes_btn = box.addButton("确定(●'◡'●)", QMessageBox.AcceptRole)
+        box.addButton("我再想想¯\\_(ツ)_/¯", QMessageBox.RejectRole)
+        box.exec()
+        return box.clickedButton() is yes_btn
+
+    def _show_completion_message(self) -> None:
+        message = self.data.get("settings", {}).get(
+            "complete_message", "终于完成任务了耶o(*≧▽≦)ツ┏━┓！！！"
+        )
+        box = QMessageBox(self)
+        box.setWindowTitle("太棒了")
+        box.setIcon(QMessageBox.Information)
+        box.setText(message)
+        box.setFont(QFont("Microsoft YaHei", 10))
+        box.addButton("好的！", QMessageBox.AcceptRole)
+        box.exec()
 
     def _animate_task_text(
         self, label: AnimatedTextLabel, task: dict, checked: bool
@@ -924,7 +942,12 @@ class MainWindow(QMainWindow):
         self._popups.append(popup)
 
         screen = self.screen() or QGuiApplication.primaryScreen()
-        geo = screen.availableGeometry() if screen else None
+        geo = None
+        if screen is not None:
+            try:
+                geo = screen.availableGeometry()
+            except AttributeError:
+                geo = None
         margin = 16
         index = len(self._popups) - 1
         if geo is not None:
@@ -1099,6 +1122,7 @@ class MainWindow(QMainWindow):
             settings.get("minimize_action", "mini"),
             settings.get("close_action", "tray"),
             settings.get("mini_opacity", 80),
+            settings.get("complete_message", ""),
             self._play_sound_file,
         )
         if dialog.exec() != SettingsDialog.Accepted:
@@ -1114,6 +1138,7 @@ class MainWindow(QMainWindow):
             minimize_action,
             close_action,
             mini_opacity,
+            complete_message,
         ) = dialog.values()
         settings["cleanup_days"] = days
         settings["sound_file"] = sound_path
@@ -1124,6 +1149,7 @@ class MainWindow(QMainWindow):
         settings["minimize_action"] = minimize_action
         settings["close_action"] = close_action
         settings["mini_opacity"] = mini_opacity
+        settings["complete_message"] = complete_message
         storage.save_data(self.data)
         try:
             if start_on_boot:

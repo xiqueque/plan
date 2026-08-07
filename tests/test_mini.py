@@ -8,10 +8,10 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QMouseEvent
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from app.core import storage
-from app.ui.main_window import MainWindow
+from app.ui.main_window import AnimatedTextLabel, BigCheckBox, MainWindow
 from app.ui.settings_dialog import SettingsDialog
 
 
@@ -52,13 +52,14 @@ class MiniModeTestCase(unittest.TestCase):
     def test_settings_values_tuple(self):
         dialog = SettingsDialog(None)
         values = dialog.values()
-        self.assertEqual(len(values), 10)
+        self.assertEqual(len(values), 11)
         self.assertFalse(values[6])  # 总在最前默认关闭
         self.assertEqual(values[7], "mini")  # 最小化默认迷你模式
         self.assertEqual(values[8], "tray")  # 关闭默认托盘
         self.assertEqual(values[9], 80)  # 迷你不透明度默认 80%
+        self.assertIn("终于完成任务了耶", values[10])
 
-    def test_mini_two_columns_and_toggle(self):
+    def test_mini_two_columns_and_readonly(self):
         data = storage.empty_data()
         today = date.today().isoformat()
         for i in range(4):
@@ -73,12 +74,13 @@ class MiniModeTestCase(unittest.TestCase):
 
         self.assertEqual(window._mini_tasks_grid.columnCount(), 2)
         self.assertIn("rgba(", window.centralWidget().styleSheet())
-
-        task = window.data["tasks"][0]
-        window._on_mini_toggle(task, True)
-        self.assertTrue(storage.is_done(window.data, task["id"], today))
+        # 迷你窗口只读，不提供勾选框
+        self.assertEqual(window.findChildren(BigCheckBox), [])
+        # 迷你窗口不显示在任务栏（Qt.Tool），退出后恢复
+        self.assertTrue((window.windowFlags() & Qt.Tool) == Qt.Tool)
 
         window._exit_mini_mode()
+        self.assertFalse((window.windowFlags() & Qt.Tool) == Qt.Tool)
 
     def test_mini_pin_toggle(self):
         window = MainWindow()
@@ -86,6 +88,7 @@ class MiniModeTestCase(unittest.TestCase):
         self.assertFalse(window.data["settings"].get("mini_pinned", False))
         # 迷你窗口不置顶
         self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        self.assertTrue((window.windowFlags() & Qt.Tool) == Qt.Tool)
 
         window._toggle_mini_pin()
         self.assertTrue(window.data["settings"]["mini_pinned"])
@@ -107,6 +110,30 @@ class MiniModeTestCase(unittest.TestCase):
         window._toggle_mini_pin()
         self.assertFalse(window.data["settings"]["mini_pinned"])
         window._exit_mini_mode()
+
+    def test_confirm_complete_flow(self):
+        data = storage.empty_data()
+        today = date.today().isoformat()
+        task = storage.new_task("确认测试", today)
+        data["tasks"].append(task)
+        storage.save_data(data)
+
+        window = MainWindow()
+        window._play_check_sound = lambda: None
+        window._show_completion_message = lambda: None
+        label = AnimatedTextLabel("确认测试", "#1F3A4D")
+        check = BigCheckBox()
+
+        # 用户选择“我再想想”：不标记完成
+        window._confirm_complete = lambda: False
+        window._on_toggle_done(task, today, True, label, check)
+        self.assertFalse(storage.is_done(window.data, task["id"], today))
+        self.assertFalse(check.isChecked())
+
+        # 用户选择“确定”：标记完成
+        window._confirm_complete = lambda: True
+        window._on_toggle_done(task, today, True, label, check)
+        self.assertTrue(storage.is_done(window.data, task["id"], today))
 
 
 if __name__ == "__main__":

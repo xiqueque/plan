@@ -37,6 +37,8 @@ def main() -> None:
     window.show()
     app.processEvents()
     window._play_check_sound = lambda: None  # 测试期间不发声
+    window._confirm_complete = lambda: True  # 测试期间自动确认
+    window._show_completion_message = lambda: None
 
     boxes = window.findChildren(BigCheckBox)
     assert len(boxes) >= 2, "未找到足够的勾选框"

@@ -87,7 +87,10 @@ class ReminderPopup(QWidget):
         screen = self.screen() or QGuiApplication.primaryScreen()
         if screen is None:
             return
-        start_x = screen.availableGeometry().right()
+        try:
+            start_x = screen.availableGeometry().right()
+        except AttributeError:
+            return
         anim = QPropertyAnimation(self, b"pos", self)
         anim.setDuration(300)
         anim.setStartValue(QPoint(start_x, self.y()))
