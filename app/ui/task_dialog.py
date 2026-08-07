@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core.storage import ALL_WEEKDAYS, WEEKDAY_NAMES
+from .style import CHECKBOX_QSS
 from .time_picker import TimeButton
 
 TASK_COLORS = [
@@ -34,6 +35,7 @@ class TaskDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("编辑计划" if task else "添加计划")
         self.setMinimumWidth(460)
+        self.setStyleSheet(CHECKBOX_QSS)
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("内容："))

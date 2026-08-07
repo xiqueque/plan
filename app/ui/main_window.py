@@ -27,6 +27,7 @@ from ..core.reminder import ReminderScheduler
 from .calendar_dialog import CalendarDialog
 from .reminder_popup import ReminderPopup
 from .settings_dialog import SettingsDialog
+from .style import CHECKBOX_QSS
 from .task_dialog import TaskDialog
 
 try:
@@ -110,7 +111,7 @@ QFrame#taskRow {
     border: 1px solid #D5E8F2;
     border-radius: 8px;
 }
-"""
+""" + CHECKBOX_QSS
 
 
 class BigCheckBox(QCheckBox):
@@ -118,7 +119,7 @@ class BigCheckBox(QCheckBox):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(30, 30)
+        self.setFixedSize(36, 36)
         self.setCursor(Qt.PointingHandCursor)
         self.setMouseTracking(True)
         self._hover = False

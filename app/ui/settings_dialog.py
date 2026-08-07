@@ -17,6 +17,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from .style import CHECKBOX_QSS
+
 AUDIO_FILTER = "音频文件 (*.wav *.mp3)"
 
 
@@ -34,6 +36,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.setMinimumWidth(460)
+        self.setStyleSheet(CHECKBOX_QSS)
 
         self.check_sound = sound_file or ""
         self._default_sound_name = default_sound_name

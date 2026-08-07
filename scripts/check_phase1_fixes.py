@@ -38,6 +38,8 @@ def main() -> None:
     boxes = window.findChildren(BigCheckBox)
     assert boxes, "未找到勾选框"
     box = boxes[0]
+    assert (box.width(), box.height()) == (36, 36), f"勾选框尺寸 {box.width()}x{box.height()}"
+    print("checkbox size OK")
 
     # 0) 最小窗口尺寸应为 480x340
     assert (window.minimumWidth(), window.minimumHeight()) == (480, 340), (
