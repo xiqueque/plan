@@ -6,8 +6,9 @@ from datetime import date, timedelta
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QUrl, QVariantAnimation
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPen
+from PySide6.QtGui import QColor, QGuiApplication, QIcon, QPainter, QPen
 from PySide6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QFileDialog,
     QFrame,
@@ -15,19 +16,22 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizeGrip,
+    QSystemTrayIcon,
     QVBoxLayout,
     QWidget,
 )
 
-from ..core import autostart, storage
+from ..core import autostart, storage, theme
 from ..core.reminder import ReminderScheduler
 from .calendar_dialog import CalendarDialog
 from .reminder_popup import ReminderPopup
 from .settings_dialog import SettingsDialog
-from .style import CHECKBOX_QSS
+from .style import build_main_qss
 from .task_dialog import TaskDialog
 from .thumb import IMAGE_FILTER, ThumbButton
 
@@ -42,77 +46,7 @@ WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "�
 SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "check.wav"
 DEFAULT_SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "8月7日_裁剪.wav"
 BASE_TASK_FONT_PX = 18
-
-APP_QSS = """
-QWidget {
-    font-family: "幼圆", "Microsoft YaHei", "微软雅黑", sans-serif;
-    font-size: 15px;
-    color: #1F3A4D;
-}
-QMainWindow, QWidget#central, QDialog, QMessageBox {
-    background: #EAF6FC;
-}
-QPushButton#dateLabel {
-    border: none;
-    background: transparent;
-    font-size: 20px;
-    font-weight: bold;
-    text-align: left;
-    padding: 0;
-}
-QPushButton#dateLabel:hover { color: #3B7DBF; }
-QPushButton#dateLabel:pressed { color: #1F3A4D; }
-QLabel#emptyLabel {
-    color: #6B8CA3;
-    padding: 24px;
-}
-QLabel#taskText {
-    font-size: 18px;
-    font-weight: 600;
-}
-QLabel#timeLabel {
-    font-size: 13px;
-    color: #6B8CA3;
-}
-QLineEdit, QSpinBox {
-    background: white;
-    border: 1px solid #7FB8D4;
-    border-radius: 6px;
-    padding: 5px 8px;
-    selection-background-color: #ADD8E6;
-}
-QPushButton {
-    background: #ADD8E6;
-    border: 1px solid #7FB8D4;
-    border-radius: 6px;
-    padding: 6px 12px;
-}
-QPushButton:hover { background: #9CCFE0; }
-QPushButton:pressed { background: #8BC4D8; }
-QPushButton#primary {
-    background: #7FB8D4;
-    color: white;
-    font-weight: bold;
-}
-QPushButton#primary:hover { background: #6FB1CE; }
-QPushButton#smallBtn {
-    padding: 7px 14px;
-    font-size: 15px;
-}
-QPushButton#smallDanger {
-    padding: 7px 14px;
-    font-size: 15px;
-    background: #F4C7C3;
-    border-color: #D9A29C;
-}
-QPushButton#smallDanger:hover { background: #EFB4AE; }
-QScrollArea { border: none; background: transparent; }
-QFrame#taskRow {
-    background: white;
-    border: 1px solid #D5E8F2;
-    border-radius: 8px;
-}
-""" + CHECKBOX_QSS
+APP_ICON = Path(__file__).resolve().parent.parent / "assets" / "app_icon.ico"
 
 
 class BigCheckBox(QCheckBox):
@@ -231,6 +165,14 @@ class MainWindow(QMainWindow):
         self.current_date = date.today()
         self.keyword = ""
 
+        self._themes = theme.load_themes()
+        self.theme = theme.get_theme(self.data["settings"], self._themes)
+        self.setWindowFlags(Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self._drag_offset = None
+        self._quitting = False
+        self._tray_hint_shown = False
+
         self._build_ui()
         self.refresh()
 
@@ -241,6 +183,7 @@ class MainWindow(QMainWindow):
         self._scheduler.set_data(self.data)
         self._scheduler.check()
         self._warm_up_audio()
+        self._setup_tray()
 
     # ---------- 界面构建 ----------
     def _build_ui(self) -> None:
@@ -269,6 +212,16 @@ class MainWindow(QMainWindow):
         top.addWidget(self.prev_btn)
         top.addWidget(self.today_btn)
         top.addWidget(self.next_btn)
+        self.min_btn = QPushButton("—")
+        self.min_btn.setObjectName("winBtn")
+        self.min_btn.setToolTip("最小化到托盘")
+        self.min_btn.clicked.connect(self._hide_to_tray)
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setObjectName("winClose")
+        self.close_btn.setToolTip("关闭（最小化到托盘）")
+        self.close_btn.clicked.connect(self._hide_to_tray)
+        top.addWidget(self.min_btn)
+        top.addWidget(self.close_btn)
         root.addLayout(top)
 
         # 搜索框
@@ -336,15 +289,88 @@ class MainWindow(QMainWindow):
         bottom.addWidget(self.add_btn, 1)
         bottom.addWidget(self.screenshot_btn)
         bottom.addWidget(self.settings_btn)
+        bottom.addWidget(QSizeGrip(self), 0, Qt.AlignBottom | Qt.AlignRight)
         root.addLayout(bottom)
 
-        self.setStyleSheet(APP_QSS)
+        self.setStyleSheet(build_main_qss(self.theme))
 
     # ---------- 刷新列表 ----------
     def refresh(self) -> None:
         self.date_label.setText(self.format_date(self.current_date))
         self._rebuild_list()
         self._refresh_images()
+
+    # ---------- 窗口与托盘 ----------
+    def _setup_tray(self) -> None:
+        self._tray = None
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        tray = QSystemTrayIcon(self)
+        if APP_ICON.exists():
+            tray.setIcon(QIcon(str(APP_ICON)))
+        menu = QMenu(self)
+        act_show = menu.addAction("显示每日计划")
+        act_show.triggered.connect(self._show_from_tray)
+        menu.addSeparator()
+        act_quit = menu.addAction("退出")
+        act_quit.triggered.connect(self._quit)
+        tray.setContextMenu(menu)
+        tray.activated.connect(self._tray_activated)
+        tray.show()
+        self._tray = tray
+
+    def _tray_activated(self, reason) -> None:
+        if reason == QSystemTrayIcon.Trigger:
+            self._show_from_tray()
+
+    def _show_from_tray(self) -> None:
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def _hide_to_tray(self) -> None:
+        self.hide()
+        if self._tray and not self._tray_hint_shown:
+            self._tray_hint_shown = True
+            self._tray.showMessage(
+                "每日计划",
+                "已最小化到托盘，提醒功能继续运行。",
+                QSystemTrayIcon.Information,
+                2500,
+            )
+
+    def _quit(self) -> None:
+        self._quitting = True
+        if self._tray:
+            self._tray.hide()
+        QApplication.instance().quit()
+
+    def closeEvent(self, event):
+        if self._quitting:
+            event.accept()
+            return
+        event.ignore()
+        self._hide_to_tray()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self._drag_offset = (
+                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            )
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._drag_offset is not None and event.buttons() & Qt.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_offset)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_offset = None
+        super().mouseReleaseEvent(event)
 
     @staticmethod
     def format_date(d: date) -> str:
@@ -829,15 +855,28 @@ class MainWindow(QMainWindow):
             DEFAULT_SOUND_FILE.name if DEFAULT_SOUND_FILE.exists() else "",
             autostart.is_enabled(),
             settings.get("image_viewer", ""),
+            [(t.id, t.name) for t in self._themes.values()],
+            settings.get("theme", theme.DEFAULT_THEME_ID),
+            bool(settings.get("topmost", False)),
             self._play_sound_file,
         )
         if dialog.exec() != SettingsDialog.Accepted:
             return
-        days, sound_path, volume, start_on_boot, image_viewer = dialog.values()
+        (
+            days,
+            sound_path,
+            volume,
+            start_on_boot,
+            image_viewer,
+            theme_id,
+            topmost,
+        ) = dialog.values()
         settings["cleanup_days"] = days
         settings["sound_file"] = sound_path
         settings["sound_volume"] = volume
         settings["image_viewer"] = image_viewer
+        settings["theme"] = theme_id
+        settings["topmost"] = topmost
         storage.save_data(self.data)
         try:
             if start_on_boot:
@@ -846,6 +885,11 @@ class MainWindow(QMainWindow):
                 autostart.disable()
         except OSError:
             QMessageBox.warning(self, "开机自启", "设置开机自启动失败，请稍后重试。")
+        # 应用主题与总在最前
+        self.theme = theme.get_theme(settings, self._themes)
+        self.setStyleSheet(build_main_qss(self.theme))
+        self.setWindowFlag(Qt.WindowStaysOnTopHint, topmost)
+        self.show()
         removed = storage.run_cleanup(self.data)
         if removed:
             storage.save_data(self.data)

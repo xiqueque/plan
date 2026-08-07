@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from .style import CHECKBOX_QSS
+from ..core.theme import DEFAULT_THEME_ID
 
 AUDIO_FILTER = "音频文件 (*.wav *.mp3)"
 
@@ -41,6 +42,9 @@ class SettingsDialog(QDialog):
         default_sound_name: str = "",
         autostart_enabled: bool = False,
         image_viewer: str = "",
+        themes=None,
+        current_theme: str = DEFAULT_THEME_ID,
+        topmost: bool = False,
         on_preview=None,
     ):
         super().__init__(parent)
@@ -116,6 +120,23 @@ class SettingsDialog(QDialog):
         if image_viewer:
             self.viewer_combo.setCurrentIndex(1)
         self._update_viewer_enabled()
+
+        # 主题
+        theme_row = QHBoxLayout()
+        theme_row.addWidget(QLabel("主题："))
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem("默认淡蓝", DEFAULT_THEME_ID)
+        for tid, tname in (themes or []):
+            self.theme_combo.addItem(tname, tid)
+        idx = self.theme_combo.findData(current_theme)
+        if idx >= 0:
+            self.theme_combo.setCurrentIndex(idx)
+        theme_row.addWidget(self.theme_combo, 1)
+        layout.addLayout(theme_row)
+
+        self.topmost_check = QCheckBox("窗口总在最前（提醒弹窗不受影响）")
+        self.topmost_check.setChecked(topmost)
+        layout.addWidget(self.topmost_check)
 
         layout.addWidget(self._hint("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
 
@@ -195,4 +216,6 @@ class SettingsDialog(QDialog):
             self.sound_volume(),
             self.autostart_check.isChecked(),
             self.image_viewer(),
+            self.theme_combo.currentData() or DEFAULT_THEME_ID,
+            self.topmost_check.isChecked(),
         )
