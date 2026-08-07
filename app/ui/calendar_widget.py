@@ -274,3 +274,47 @@ class DayDetailDialog(QDialog):
         close_btn.clicked.connect(self.accept)
         bottom.addWidget(close_btn)
         layout.addLayout(bottom)
+
+
+def build_calendar_export(data: dict, month: date) -> QWidget:
+    """生成干净的月度计划卡片（无按钮），用于截图保存。"""
+    widget = QWidget()
+    widget.setStyleSheet("background:#F2FAFF;")
+    layout = QVBoxLayout(widget)
+    layout.setContentsMargins(24, 24, 24, 24)
+    layout.setSpacing(10)
+
+    title = QLabel(f"{month.year}年{month.month}月 月度计划")
+    title.setStyleSheet("font-size:24px; font-weight:bold; color:#1F3A4D;")
+    layout.addWidget(title)
+
+    grid = QGridLayout()
+    grid.setHorizontalSpacing(8)
+    grid.setVerticalSpacing(8)
+    for col, name in enumerate(WEEKDAY_HEADERS):
+        head = QLabel(name)
+        head.setAlignment(Qt.AlignCenter)
+        head.setStyleSheet("font-size:15px; font-weight:bold; color:#6B8CA3;")
+        grid.addWidget(head, 0, col)
+
+    first = month
+    start = first - timedelta(days=first.weekday())
+    today = date.today()
+    for i in range(42):
+        day = start + timedelta(days=i)
+        row, col = i // 7 + 1, i % 7
+        if day.month != month.month or day.year != month.year:
+            blank = QFrame()
+            blank.setStyleSheet("QFrame { background:transparent; border:none; }")
+            grid.addWidget(blank, row, col)
+            continue
+        tasks = storage.tasks_for_date(data, day.isoformat())
+        cell = DayCell(day, tasks, today=(day == today), selected=False)
+        cell.setCursor(Qt.ArrowCursor)
+        grid.addWidget(cell, row, col)
+    for col in range(7):
+        grid.setColumnStretch(col, 1)
+    for row in range(1, 7):
+        grid.setRowStretch(row, 1)
+    layout.addLayout(grid, 1)
+    return widget

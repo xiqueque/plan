@@ -186,6 +186,17 @@ class ReminderTestCase(unittest.TestCase):
         self.assertTrue(any("详情任务" in t for t in labels))
         dialog.close()
 
+    def test_calendar_export_builds(self):
+        from app.ui.calendar_widget import build_calendar_export
+
+        data = storage.empty_data()
+        today = date.today()
+        data["tasks"].append(storage.new_task("导出任务", today.isoformat()))
+        widget = build_calendar_export(data, today.replace(day=1))
+        labels = [lbl.text() for lbl in widget.findChildren(QLabel)]
+        self.assertTrue(any("导出任务" in t for t in labels))
+        self.assertFalse(widget.grab().isNull())
+
     def test_popup_constructs_and_closes(self):
         task = storage.new_task(
             "测试提醒",

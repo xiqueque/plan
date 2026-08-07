@@ -2,18 +2,21 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-from .calendar_widget import CalendarGrid, DayDetailDialog
+from .calendar_widget import CalendarGrid, DayDetailDialog, build_calendar_export
 
 CALENDAR_QSS = """
 QDialog { background: transparent; }
@@ -92,11 +95,15 @@ class CalendarDialog(QDialog):
         bottom = QHBoxLayout()
         detail_btn = QPushButton("查看详情")
         detail_btn.clicked.connect(self._show_selected_detail)
+        shot_btn = QPushButton("截图")
+        shot_btn.setToolTip("保存月度计划图片")
+        shot_btn.clicked.connect(self.export_screenshot)
         ok_btn = QPushButton("确定")
         ok_btn.clicked.connect(self.accept)
         cancel_btn = QPushButton("取消")
         cancel_btn.clicked.connect(self.reject)
         bottom.addWidget(detail_btn)
+        bottom.addWidget(shot_btn)
         bottom.addStretch(1)
         bottom.addWidget(ok_btn)
         bottom.addWidget(cancel_btn)
@@ -111,6 +118,29 @@ class CalendarDialog(QDialog):
 
     def _show_selected_detail(self) -> None:
         self._show_detail(self.grid.selected_date())
+
+    def export_screenshot(self) -> None:
+        widget = build_calendar_export(self.data, self.grid.month)
+        widget.setMinimumWidth(720)
+        widget.adjustSize()
+        pixmap = widget.grab()
+        default_name = (
+            f"月度计划_{self.grid.month.year:04d}-{self.grid.month.month:02d}.png"
+        )
+        path, _ = QFileDialog.getSaveFileName(
+            self, "保存月度计划截图", str(Path.home() / default_name), "PNG 图片 (*.png)"
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        if pixmap.save(path, "PNG"):
+            box = QMessageBox(self)
+            box.setWindowTitle("截图")
+            box.setText(f"截图已保存：\n{path}")
+            box.setIcon(QMessageBox.NoIcon)
+            box.addButton("好的", QMessageBox.AcceptRole)
+            box.exec()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
