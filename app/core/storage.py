@@ -40,7 +40,8 @@ def new_task(
     images: list | None = None,
 ) -> dict:
     """创建一个新任务字典。"""
-    if reminder_mode == "daily":
+    if reminder_mode == "daily" or is_daily:
+        reminder_mode = "daily"
         is_daily = True
     return {
         "id": new_task_id(),
@@ -70,6 +71,7 @@ def empty_data() -> dict:
         "reminded": {},
         "day_images": {},
         "image_names": {},
+        "image_daily": {},
     }
 
 
@@ -92,6 +94,7 @@ def load_data() -> dict:
     data.setdefault("reminded", {})
     data.setdefault("day_images", {})
     data.setdefault("image_names", {})
+    data.setdefault("image_daily", {})
     settings = data["settings"]
     # 兼容旧版本：check_sound -> sound_file
     if "check_sound" in settings and "sound_file" not in settings:
@@ -262,11 +265,14 @@ def run_cleanup(data: dict) -> int:
     data["day_images"] = {
         d: v for d, v in data.get("day_images", {}).items() if d >= cutoff
     }
+    referenced = referenced_image_names(data)
     data["image_names"] = {
         k: v for k, v in data.get("image_names", {}).items() if k in referenced
     }
+    data["image_daily"] = {
+        k: v for k, v in data.get("image_daily", {}).items() if k in referenced
+    }
     # 删除未被任何任务/图片区引用的图片文件
-    referenced = referenced_image_names(data)
     if IMAGES_DIR.exists():
         for f in IMAGES_DIR.iterdir():
             if f.is_file() and f.name not in referenced:

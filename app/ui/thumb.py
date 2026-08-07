@@ -57,18 +57,23 @@ class ThumbButton(QFrame):
 
     deleted = Signal(str)
     renamed = Signal(str, str)
+    mark_toggled = Signal(str)
 
     def __init__(
         self,
         image_path,
         display_name: str = "",
         show_delete: bool = True,
+        marked: bool = False,
+        mark_enabled: bool = False,
         parent=None,
     ):
         super().__init__(parent)
         self.path = Path(image_path)
         self.display_name = display_name or self.path.name
         self._show_delete = show_delete
+        self._marked = marked
+        self._mark_enabled = mark_enabled
         self.setStyleSheet(THUMB_QSS)
         self.setFixedWidth(106)
         self.setContextMenuPolicy(Qt.DefaultContextMenu)
@@ -95,6 +100,15 @@ class ThumbButton(QFrame):
         self.caption.setToolTip(self.display_name)
         lay.addWidget(self.caption)
 
+        # 左上角星标（标记为每日图片）
+        self.star = QLabel("★")
+        self.star.setStyleSheet(
+            "color:#F0B429; font-size:18px; background:transparent;"
+        )
+        self.star.setFixedSize(18, 18)
+        self.star.move(3, 3)
+        self.star.setVisible(self._marked)
+
     def _elide(self, text: str) -> str:
         metrics = QFontMetrics(self.font())
         return metrics.elidedText(text, Qt.ElideMiddle, 96)
@@ -105,6 +119,10 @@ class ThumbButton(QFrame):
         self.caption.setToolTip(name)
         self.icon_btn.setToolTip(name)
 
+    def set_marked(self, marked: bool) -> None:
+        self._marked = marked
+        self.star.setVisible(marked)
+
     def _open(self) -> None:
         open_image_external(self.path)
 
@@ -112,6 +130,11 @@ class ThumbButton(QFrame):
         menu = QMenu(self)
         act_open = menu.addAction("打开")
         act_rename = menu.addAction("重命名")
+        act_mark = None
+        if self._mark_enabled:
+            act_mark = menu.addAction(
+                "取消每日图片" if self._marked else "标记为每日图片"
+            )
         act_delete = menu.addAction("删除")
         act_delete.setEnabled(self._show_delete)
         chosen = menu.exec(event.globalPos())
@@ -119,6 +142,8 @@ class ThumbButton(QFrame):
             open_image_external(self.path)
         elif chosen is act_rename:
             self._rename()
+        elif act_mark is not None and chosen is act_mark:
+            self.mark_toggled.emit(str(self.path))
         elif chosen is act_delete:
             self.deleted.emit(str(self.path))
 

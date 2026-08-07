@@ -703,26 +703,55 @@ class MainWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
 
-        date_str = self.current_date.isoformat()
-        names = self.data.get("day_images", {}).get(date_str, [])
-        self.img_count_label.setText(f"{len(names)} 张")
-        if not names:
+        entries = self._day_image_entries(self.current_date.isoformat())
+        self.img_count_label.setText(f"{len(entries)} 张")
+        if not entries:
             hint = QLabel("暂无图片，点右上角「添加图片」可放课程表等图片")
             hint.setStyleSheet("color:#6B8CA3; padding:8px;")
             self.image_layout.insertWidget(0, hint)
             return
-        show_delete = len(names) > 1  # 只剩一张时不允许删除
-        for name in names:
+        for name, source in entries:
             path = storage.image_path(name)
             if not path.exists():
                 continue
             display = self.data.get("image_names", {}).get(name, name)
-            thumb = ThumbButton(path, display_name=display, show_delete=show_delete)
+            deletable = source in ("day", "daily")
+            markable = source in ("day", "daily")
+            marked = bool(self.data.get("image_daily", {}).get(name))
+            thumb = ThumbButton(
+                path,
+                display_name=display,
+                show_delete=deletable,
+                marked=marked,
+                mark_enabled=markable,
+            )
             thumb.deleted.connect(lambda n=name: self._delete_day_image(n))
             thumb.renamed.connect(
                 lambda n, new: self._rename_day_image(n, new)
             )
+            thumb.mark_toggled.connect(lambda n=name: self._toggle_daily_image(n))
             self.image_layout.insertWidget(self.image_layout.count() - 1, thumb)
+
+    def _day_image_entries(self, date_str: str) -> list:
+        """某天图片区的条目：当天图片 + 每日标记图片 + 每天任务附带的图片。"""
+        entries = []
+        seen = set()
+        day = self.data.get("day_images", {}).get(date_str, [])
+        for name in day:
+            if name not in seen and storage.image_path(name).exists():
+                seen.add(name)
+                entries.append((name, "day"))
+        for name, flag in self.data.get("image_daily", {}).items():
+            if flag and name not in seen and storage.image_path(name).exists():
+                seen.add(name)
+                entries.append((name, "daily"))
+        for task in self.data.get("tasks", []):
+            if task.get("is_daily"):
+                for name in task.get("images") or []:
+                    if name not in seen and storage.image_path(name).exists():
+                        seen.add(name)
+                        entries.append((name, "task"))
+        return entries
 
     def _toggle_images(self) -> None:
         show = self.img_toggle_btn.isChecked()
@@ -745,19 +774,20 @@ class MainWindow(QMainWindow):
         self._refresh_images()
 
     def _delete_day_image(self, name: str) -> None:
-        date_str = self.current_date.isoformat()
-        day = self.data.get("day_images", {}).get(date_str, [])
-        if name not in day:
-            return
-        if len(day) <= 1:
-            QMessageBox.information(
-                self, "删除图片", "图片区至少需要保留一张图片，不能删除。"
-            )
-            return
-        day.remove(name)
+        # 从所有日期的图片区移除该图片
+        for day in self.data.get("day_images", {}).values():
+            if name in day:
+                day.remove(name)
+        self.data.get("image_daily", {}).pop(name, None)
+        storage.forget_image_display(name)
         if name not in storage.referenced_image_names(self.data):
             storage.delete_image_file(name)
-        storage.forget_image_display(name)
+        storage.save_data(self.data)
+        self._refresh_images()
+
+    def _toggle_daily_image(self, name: str) -> None:
+        daily = self.data.setdefault("image_daily", {})
+        daily[name] = not daily.get(name)
         storage.save_data(self.data)
         self._refresh_images()
 

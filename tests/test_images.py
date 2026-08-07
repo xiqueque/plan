@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from PySide6.QtGui import QColor, QImage
@@ -53,11 +53,13 @@ class ImageTestCase(unittest.TestCase):
         name = storage.import_image(str(src))
         data = storage.empty_data()
         data["day_images"]["2026-01-01"] = [name]  # 过期日期
+        data["image_daily"] = {name: True}
         storage.save_data(data)
         loaded = storage.load_data()
         storage.run_cleanup(loaded)
         self.assertNotIn("2026-01-01", loaded["day_images"])
         self.assertFalse(storage.image_path(name).exists())
+        self.assertNotIn(name, loaded["image_daily"])
 
     def test_referenced_images_kept(self):
         src = self.tmp_path / "b.png"
@@ -90,7 +92,6 @@ class ImageTestCase(unittest.TestCase):
         thumb.close()
 
     def test_main_window_image_strip(self):
-        from app.ui import main_window as mw
         from app.ui.main_window import MainWindow
 
         today = date.today().isoformat()
@@ -116,11 +117,47 @@ class ImageTestCase(unittest.TestCase):
         self.assertEqual(window.data["day_images"][today], [names[1]])
         self.assertFalse(storage.image_path(names[0]).exists())
 
-        # 只剩一张时禁止删除（测试中屏蔽弹窗）
-        mw.QMessageBox.information = lambda *args, **kwargs: None
+        # 只剩一张时也可以删除
         window._delete_day_image(names[1])
-        self.assertEqual(window.data["day_images"][today], [names[1]])
-        self.assertTrue(storage.image_path(names[1]).exists())
+        self.assertEqual(window.data["day_images"][today], [])
+        self.assertFalse(storage.image_path(names[1]).exists())
+
+    def test_daily_marked_and_task_images_appear_every_day(self):
+        from app.ui.main_window import MainWindow
+
+        today = date.today().isoformat()
+        tomorrow = (date.today() + timedelta(days=1)).isoformat()
+
+        src1 = self.tmp_path / "m1.png"
+        make_png(src1)
+        name1 = storage.import_image(str(src1))
+        src2 = self.tmp_path / "m2.png"
+        make_png(src2)
+        name2 = storage.import_image(str(src2))
+
+        data = storage.empty_data()
+        data["day_images"][today] = [name1]
+        data["tasks"].append(
+            storage.new_task("每天任务", today, is_daily=True, images=[name2])
+        )
+        storage.save_data(data)
+
+        window = MainWindow()
+        window._toggle_daily_image(name1)  # 标记为每日图片
+        window.show()
+        self.app.processEvents()
+
+        entries = window._day_image_entries(tomorrow)
+        sources = dict(entries)
+        self.assertIn(name1, sources)  # 每日标记的图片
+        self.assertEqual(sources[name1], "daily")
+        self.assertIn(name2, sources)  # 每天任务附带的图片
+        self.assertEqual(sources[name2], "task")
+
+        # 标记后的缩略图左上角显示星号
+        thumbs = window.findChildren(ThumbButton)
+        marked_thumb = next(t for t in thumbs if t._marked)
+        self.assertTrue(marked_thumb.star.isVisible())
 
 
 if __name__ == "__main__":
