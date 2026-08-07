@@ -29,6 +29,7 @@ def new_task(
     time_start: str | None = None,
     time_end: str | None = None,
     is_daily: bool = False,
+    color: str = "#1F3A4D",
 ) -> dict:
     """创建一个新任务字典。"""
     return {
@@ -38,6 +39,7 @@ def new_task(
         "time_start": time_start or None,
         "time_end": time_end or None,
         "is_daily": bool(is_daily),
+        "color": color or "#1F3A4D",
         "pinned": False,
         "pinned_at": None,
         "created_at": time.time(),

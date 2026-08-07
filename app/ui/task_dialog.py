@@ -3,15 +3,26 @@ from __future__ import annotations
 
 from PySide6.QtCore import QTime
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QTimeEdit,
     QVBoxLayout,
 )
+
+TASK_COLORS = [
+    ("#1F3A4D", "黑色（默认）"),
+    ("#E05252", "红色（紧急）"),
+    ("#E8963A", "橙色（重要）"),
+    ("#3B7DBF", "蓝色（常规）"),
+    ("#4C9E63", "绿色（轻松）"),
+    ("#7B5EA7", "紫色（备忘）"),
+]
 
 
 class TaskDialog(QDialog):
@@ -45,6 +56,28 @@ class TaskDialog(QDialog):
         self.daily_check = QCheckBox("每天重复出现（每天自动出现在列表）")
         layout.addWidget(self.daily_check)
 
+        # 字体颜色选择
+        color_row = QHBoxLayout()
+        color_row.addWidget(QLabel("字体颜色："))
+        self.color_buttons = []
+        self.color_group = QButtonGroup(self)
+        self.color_group.setExclusive(True)
+        for hex_color, label in TASK_COLORS:
+            btn = QPushButton()
+            btn.setCheckable(True)
+            btn.setFixedSize(28, 28)
+            btn.setToolTip(label)
+            btn.setStyleSheet(
+                f"QPushButton {{ background:{hex_color}; border:1px solid #9AA5AC; "
+                f"border-radius:6px; }}"
+            )
+            btn.clicked.connect(lambda _, c=hex_color: self._select_color(c))
+            self.color_group.addButton(btn)
+            self.color_buttons.append((btn, hex_color))
+            color_row.addWidget(btn)
+        color_row.addStretch(1)
+        layout.addLayout(color_row)
+
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Save).setText("保存")
         buttons.button(QDialogButtonBox.Cancel).setText("取消")
@@ -60,6 +93,7 @@ class TaskDialog(QDialog):
                 if task.get("time_end"):
                     self.end_edit.setTime(QTime.fromString(task["time_end"], "HH:mm"))
             self.daily_check.setChecked(bool(task.get("is_daily")))
+        self._select_color((task or {}).get("color") or "#1F3A4D")
 
     def _update_time_enabled(self, enabled: bool) -> None:
         self.start_edit.setEnabled(enabled)
@@ -73,3 +107,15 @@ class TaskDialog(QDialog):
             start = self.start_edit.time().toString("HH:mm")
             end = self.end_edit.time().toString("HH:mm")
         return text, start, end, self.daily_check.isChecked()
+
+    def _select_color(self, hex_color: str) -> None:
+        self._selected_color_value = hex_color
+        for btn, c in self.color_buttons:
+            btn.setChecked(c == hex_color)
+            border = "2px solid #1F3A4D" if c == hex_color else "1px solid #9AA5AC"
+            btn.setStyleSheet(
+                f"QPushButton {{ background:{c}; border:{border}; border-radius:6px; }}"
+            )
+
+    def selected_color(self) -> str:
+        return getattr(self, "_selected_color_value", "#1F3A4D")

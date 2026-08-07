@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import storage
+from .calendar_dialog import CalendarDialog
 from .settings_dialog import SettingsDialog
 from .task_dialog import TaskDialog
 
@@ -28,22 +29,31 @@ WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "�
 APP_QSS = """
 QWidget {
     font-family: "Microsoft YaHei";
-    font-size: 13px;
+    font-size: 14px;
     color: #1F3A4D;
 }
 QMainWindow, QWidget#central, QDialog, QMessageBox {
     background: #EAF6FC;
 }
-QLabel#dateLabel {
-    font-size: 16px;
+QPushButton#dateLabel {
+    border: none;
+    background: transparent;
+    font-size: 18px;
     font-weight: bold;
+    text-align: left;
+    padding: 0;
 }
+QPushButton#dateLabel:hover { color: #3B7DBF; }
+QPushButton#dateLabel:pressed { color: #1F3A4D; }
 QLabel#emptyLabel {
     color: #6B8CA3;
     padding: 24px;
 }
+QLabel#taskText {
+    font-size: 15px;
+}
 QLabel#timeLabel {
-    font-size: 11px;
+    font-size: 12px;
     color: #6B8CA3;
 }
 QLineEdit, QSpinBox {
@@ -91,8 +101,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("每日计划")
-        self.resize(400, 680)
-        self.setMinimumSize(340, 480)
+        self.resize(820, 540)
+        self.setMinimumSize(680, 420)
 
         self.data = storage.load_data()
         removed = storage.run_cleanup(self.data)
@@ -116,8 +126,11 @@ class MainWindow(QMainWindow):
 
         # 顶栏：日期（左上角）+ 日期切换
         top = QHBoxLayout()
-        self.date_label = QLabel()
+        self.date_label = QPushButton()
         self.date_label.setObjectName("dateLabel")
+        self.date_label.setToolTip("点击弹出日历，快速跳转日期")
+        self.date_label.setCursor(Qt.PointingHandCursor)
+        self.date_label.clicked.connect(self.open_calendar)
         top.addWidget(self.date_label)
         top.addStretch(1)
         self.prev_btn = QPushButton("前一天")
@@ -261,6 +274,9 @@ class MainWindow(QMainWindow):
 
         if done:
             text_label.setStyleSheet("color:#9AA5AC; text-decoration: line-through;")
+        else:
+            color = task.get("color") or "#1F3A4D"
+            text_label.setStyleSheet(f"color:{color};")
         return row
 
     # ---------- 操作 ----------
@@ -282,7 +298,9 @@ class MainWindow(QMainWindow):
         text, start, end, is_daily = dialog.values()
         if not text:
             return
-        task = storage.new_task(text, self.current_date.isoformat(), start, end, is_daily)
+        task = storage.new_task(
+            text, self.current_date.isoformat(), start, end, is_daily, dialog.selected_color()
+        )
         self.data["tasks"].append(task)
         storage.save_data(self.data)
         self._rebuild_list()
@@ -298,6 +316,7 @@ class MainWindow(QMainWindow):
         task["time_start"] = start
         task["time_end"] = end
         task["is_daily"] = is_daily
+        task["color"] = dialog.selected_color()
         storage.save_data(self.data)
         self._rebuild_list()
 
@@ -326,6 +345,14 @@ class MainWindow(QMainWindow):
     def go_today(self) -> None:
         self.current_date = date.today()
         self.refresh()
+
+    def open_calendar(self) -> None:
+        dialog = CalendarDialog(self, self.current_date)
+        if dialog.exec() == CalendarDialog.Accepted:
+            selected = dialog.selected_date()
+            if selected != self.current_date:
+                self.current_date = selected
+                self.refresh()
 
     def _on_search(self, text: str) -> None:
         self.keyword = text
