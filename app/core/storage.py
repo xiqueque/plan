@@ -13,6 +13,8 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILE = DATA_DIR / "plan.json"
 
 DEFAULT_SETTINGS = {"cleanup_days": 15, "sound_volume": 12}
+WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+ALL_WEEKDAYS = list(range(7))
 
 
 def today_str() -> str:
@@ -32,6 +34,7 @@ def new_task(
     color: str = "#1F3A4D",
     reminder_mode: str = "none",
     reminder_time: str | None = None,
+    reminder_weekdays: list[int] | None = None,
 ) -> dict:
     """创建一个新任务字典。"""
     if reminder_mode == "daily":
@@ -46,6 +49,9 @@ def new_task(
         "color": color or "#1F3A4D",
         "reminder_mode": reminder_mode or ("daily" if is_daily else "none"),
         "reminder_time": reminder_time or None,
+        "reminder_weekdays": (
+            list(reminder_weekdays) if reminder_weekdays else list(ALL_WEEKDAYS)
+        ),
         "pinned": False,
         "pinned_at": None,
         "created_at": time.time(),
@@ -85,6 +91,8 @@ def load_data() -> dict:
             task["reminder_mode"] = "daily" if task.get("is_daily") else "none"
         if "reminder_time" not in task:
             task["reminder_time"] = None
+        if "reminder_weekdays" not in task:
+            task["reminder_weekdays"] = list(ALL_WEEKDAYS)
         task["is_daily"] = task.get("reminder_mode") == "daily"
     return data
 
@@ -147,6 +155,17 @@ def mark_reminded(data: dict, task_id: str, date_str: str, time_str: str) -> Non
     """记录当天该任务已在某时间提醒过（防止重复提醒）。"""
     day = data.setdefault("reminded", {}).setdefault(date_str, {})
     day[task_id] = time_str
+
+
+def format_weekdays(weekdays) -> str:
+    """把周几列表格式化为简短中文说明；全选返回空字符串。"""
+    days = sorted(set(weekdays or []))
+    if not days or len(days) == 7:
+        return ""
+    if days == [0, 1, 2, 3, 4]:
+        return "（周一~周五）"
+    names = [WEEKDAY_NAMES[d] for d in days if 0 <= d <= 6]
+    return "（" + "、".join(names) + "）"
 
 
 def run_cleanup(data: dict) -> int:

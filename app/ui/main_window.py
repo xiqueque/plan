@@ -351,6 +351,7 @@ class MainWindow(QMainWindow):
             time_text = (time_text + "  ·  " if time_text else "") + "每天"
         if task.get("reminder_time"):
             time_text += ("  ·  " if time_text else "") + "提醒 " + task["reminder_time"]
+            time_text += storage.format_weekdays(task.get("reminder_weekdays"))
         if time_text:
             time_label = QLabel(time_text)
             time_label.setObjectName("timeLabel")
@@ -521,7 +522,7 @@ class MainWindow(QMainWindow):
         dialog = TaskDialog(self)
         if dialog.exec() != TaskDialog.Accepted:
             return
-        text, start, end, is_daily, mode, remind_time = dialog.values()
+        text, start, end, is_daily, mode, remind_time, weekdays = dialog.values()
         if not text:
             return
         task = storage.new_task(
@@ -533,6 +534,7 @@ class MainWindow(QMainWindow):
             dialog.selected_color(),
             mode,
             remind_time,
+            weekdays,
         )
         self.data["tasks"].append(task)
         storage.save_data(self.data)
@@ -542,7 +544,7 @@ class MainWindow(QMainWindow):
         dialog = TaskDialog(self, task)
         if dialog.exec() != TaskDialog.Accepted:
             return
-        text, start, end, is_daily, mode, remind_time = dialog.values()
+        text, start, end, is_daily, mode, remind_time, weekdays = dialog.values()
         if not text:
             return
         task["text"] = text
@@ -551,6 +553,7 @@ class MainWindow(QMainWindow):
         task["is_daily"] = is_daily
         task["reminder_mode"] = mode
         task["reminder_time"] = remind_time
+        task["reminder_weekdays"] = weekdays
         task["color"] = dialog.selected_color()
         storage.save_data(self.data)
         self._rebuild_list()
@@ -722,7 +725,11 @@ class MainWindow(QMainWindow):
         if task.get("is_daily"):
             extra.append("每天")
         if task.get("reminder_time"):
-            extra.append(f"提醒 {task['reminder_time']}")
+            extra.append(
+                "提醒 "
+                + task["reminder_time"]
+                + storage.format_weekdays(task.get("reminder_weekdays"))
+            )
         if task.get("pinned"):
             extra.append("置顶")
         if extra:

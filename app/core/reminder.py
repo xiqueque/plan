@@ -39,10 +39,21 @@ class ReminderScheduler(QObject):
             rt = task.get("reminder_time")
             if mode == "none" or not rt:
                 continue
-            if mode == "once" and task.get("date") != today:
-                continue
             if rt != now_hhmm:
                 continue
+            weekdays = task.get("reminder_weekdays") or list(range(7))
+            if mode == "once":
+                if task.get("date") != today:
+                    continue
+                try:
+                    task_weekday = date.fromisoformat(task["date"]).weekday()
+                except ValueError:
+                    continue
+                if task_weekday not in weekdays:
+                    continue
+            else:  # daily
+                if date.fromisoformat(today).weekday() not in weekdays:
+                    continue
             if is_reminded(self.data, task["id"], today):
                 continue
             mark_reminded(self.data, task["id"], today, rt)

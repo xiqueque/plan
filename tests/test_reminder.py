@@ -12,6 +12,7 @@ from app.core import storage
 from app.core.reminder import ReminderScheduler
 from app.ui.reminder_popup import ReminderPopup
 from app.ui.task_dialog import TaskDialog
+from app.ui.time_picker import TimeButton, TimePickerDialog
 
 
 class ReminderTestCase(unittest.TestCase):
@@ -50,6 +51,7 @@ class ReminderTestCase(unittest.TestCase):
         self.assertEqual(loaded["tasks"][0]["reminder_mode"], "daily")
         self.assertIsNone(loaded["tasks"][0]["reminder_time"])
         self.assertTrue(loaded["tasks"][0]["is_daily"])
+        self.assertEqual(loaded["tasks"][0]["reminder_weekdays"], list(range(7)))
 
     def test_scheduler_daily_once_and_dedupe(self):
         data = storage.empty_data()
@@ -93,6 +95,37 @@ class ReminderTestCase(unittest.TestCase):
         storage.run_cleanup(loaded)
         self.assertNotIn(old_date, loaded["reminded"])
 
+    def test_scheduler_weekday_restriction(self):
+        data = storage.empty_data()
+        saturday = "2026-08-08"
+        monday = "2026-08-10"
+        daily = storage.new_task(
+            "工作日喝水",
+            "2026-08-01",
+            reminder_mode="daily",
+            reminder_time="09:00",
+            reminder_weekdays=[0, 1, 2, 3, 4],
+        )
+        sat_once = storage.new_task(
+            "周六开会",
+            saturday,
+            reminder_mode="once",
+            reminder_time="09:00",
+            reminder_weekdays=[0, 1, 2, 3, 4],
+        )
+        data["tasks"].extend([daily, sat_once])
+        sched = ReminderScheduler()
+        sched.set_data(data)
+        fired = []
+        sched.reminderReady.connect(fired.append)
+
+        sched.check(now_hhmm="09:00", today=saturday)
+        self.assertEqual(fired, [])  # 周六：工作日提醒与周六的一次性任务都不触发
+        fired.clear()
+        sched.check(now_hhmm="09:00", today=monday)
+        self.assertEqual(len(fired), 1)
+        self.assertEqual(fired[0]["id"], daily["id"])
+
     def test_task_dialog_reminder_values(self):
         dialog = TaskDialog(
             None,
@@ -104,11 +137,24 @@ class ReminderTestCase(unittest.TestCase):
                 "is_daily": False,
             },
         )
-        text, start, end, is_daily, mode, remind_time = dialog.values()
+        text, start, end, is_daily, mode, remind_time, weekdays = dialog.values()
         self.assertEqual(mode, "once")
         self.assertEqual(remind_time, "07:30")
         self.assertFalse(is_daily)
         self.assertEqual(text, "x")
+        self.assertEqual(weekdays, list(range(7)))
+
+    def test_time_picker(self):
+        btn = TimeButton("09:30")
+        self.assertEqual(btn.time(), "09:30")
+        btn.set_time("23:59")
+        self.assertEqual(btn.time(), "23:59")
+
+        dialog = TimePickerDialog(None, "07:05")
+        dialog.hour_list.setCurrentRow(12)
+        dialog.minute_list.setCurrentRow(45)
+        self.assertEqual(dialog.selected_time(), "12:45")
+        dialog.close()
 
     def test_popup_constructs_and_closes(self):
         task = storage.new_task(
