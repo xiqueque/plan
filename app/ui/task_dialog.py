@@ -225,10 +225,10 @@ class TaskDialog(QDialog):
         thumb = ThumbButton(image_path(name))
         thumb.set_display_name(self._display_names.get(name, name))
         thumb.deleted.connect(
-            lambda n=name, t=thumb: self._remove_image(n, t)
+            lambda _n, short=name, t=thumb: self._remove_image(short, t)
         )
         thumb.renamed.connect(
-            lambda n, new, t=thumb: self._on_image_renamed(n, new, t)
+            lambda _n, new, short=name, t=thumb: self._on_image_renamed(short, new, t)
         )
         self.image_row.insertWidget(self.image_row.count() - 1, thumb)
 

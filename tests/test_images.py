@@ -161,6 +161,33 @@ class ImageTestCase(unittest.TestCase):
         marked_thumb = next(t for t in thumbs if t._marked)
         self.assertTrue(marked_thumb._marked)
 
+    def test_thumb_signals_use_stored_names(self):
+        from app.ui.main_window import MainWindow
+
+        today = date.today().isoformat()
+        names = []
+        for i in range(2):
+            src = self.tmp_path / f"s{i}.png"
+            make_png(src)
+            names.append(storage.import_image(str(src)))
+        data = storage.empty_data()
+        data["day_images"][today] = names
+        storage.save_data(data)
+
+        window = MainWindow()
+        thumbs = window.findChildren(ThumbButton)
+        thumb = next(t for t in thumbs if t.path.name == names[0])
+
+        # 信号传来的是完整路径，处理时必须用存储的文件名
+        thumb.renamed.emit(str(thumb.path), "新名字")
+        self.assertEqual(window.data["image_names"][names[0]], "新名字")
+
+        thumb.mark_toggled.emit(str(thumb.path))
+        self.assertTrue(window.data["image_daily"].get(names[0]))
+
+        thumb.deleted.emit(str(thumb.path))
+        self.assertNotIn(names[0], window.data["day_images"][today])
+
 
 if __name__ == "__main__":
     unittest.main()

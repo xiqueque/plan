@@ -240,6 +240,7 @@ class MainWindow(QMainWindow):
         self._scheduler.reminderReady.connect(self._on_reminder)
         self._scheduler.set_data(self.data)
         self._scheduler.check()
+        self._warm_up_audio()
 
     # ---------- 界面构建 ----------
     def _build_ui(self) -> None:
@@ -523,12 +524,7 @@ class MainWindow(QMainWindow):
         """播放音效：优先设置中的音频，其次默认音频（Music 文件夹），最后内置音效。"""
         path = (path or "").strip()
         if not path:
-            path = self.data.get("settings", {}).get("sound_file", "") or ""
-        if not path or not Path(path).exists():
-            if DEFAULT_SOUND_FILE.exists():
-                path = str(DEFAULT_SOUND_FILE)
-        if not path or not Path(path).exists():
-            path = str(SOUND_FILE)
+            path = self._resolve_sound_path()
         if not Path(path).exists():
             return
 
@@ -576,6 +572,25 @@ class MainWindow(QMainWindow):
                 f"setaudio {alias} volume to {volume * 10}", None, 0, None
             )
             winmm.mciSendStringW("play " + alias, None, 0, None)
+        except Exception:
+            pass
+
+    def _resolve_sound_path(self) -> str:
+        path = self.data.get("settings", {}).get("sound_file", "") or ""
+        if not path or not Path(path).exists():
+            if DEFAULT_SOUND_FILE.exists():
+                path = str(DEFAULT_SOUND_FILE)
+        if not path or not Path(path).exists():
+            path = str(SOUND_FILE)
+        return path
+
+    def _warm_up_audio(self) -> None:
+        """启动时预热播放器，避免第一次点击勾选框时音效延迟。"""
+        if not _HAS_QT_MULTIMEDIA:
+            return
+        try:
+            self._ensure_player()
+            self._player.setSource(QUrl.fromLocalFile(self._resolve_sound_path()))
         except Exception:
             pass
 
@@ -729,11 +744,15 @@ class MainWindow(QMainWindow):
                 marked=marked,
                 mark_enabled=markable,
             )
-            thumb.deleted.connect(lambda n=name: self._delete_day_image(n))
-            thumb.renamed.connect(
-                lambda n, new: self._rename_day_image(n, new)
+            thumb.deleted.connect(
+                lambda _n, short=name: self._delete_day_image(short)
             )
-            thumb.mark_toggled.connect(lambda n=name: self._toggle_daily_image(n))
+            thumb.renamed.connect(
+                lambda _n, new, short=name: self._rename_day_image(short, new)
+            )
+            thumb.mark_toggled.connect(
+                lambda _n, short=name: self._toggle_daily_image(short)
+            )
             self.image_layout.insertWidget(self.image_layout.count() - 1, thumb)
 
     def _day_image_entries(self, date_str: str) -> list:
