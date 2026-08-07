@@ -15,7 +15,7 @@ from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton  # noqa: E402
 
 from app.core import storage  # noqa: E402
-from app.ui.main_window import BigCheckBox, MainWindow  # noqa: E402
+from app.ui.main_window import BigCheckBox, MainWindow, PinIcon  # noqa: E402
 
 
 def main() -> None:
@@ -83,10 +83,8 @@ def main() -> None:
     print("bold OK")
 
     # 5) 置顶图标与更大的行按钮
-    pin_labels = [
-        lbl for lbl in window.findChildren(QLabel) if lbl.text() == "📌"
-    ]
-    assert pin_labels, "未找到置顶图标"
+    pin_icons = window.findChildren(PinIcon)
+    assert pin_icons, "未找到置顶图标"
     pin_btns = [
         btn
         for btn in window.findChildren(QPushButton)

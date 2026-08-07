@@ -105,10 +105,6 @@ QPushButton#smallDanger {
     border-color: #D9A29C;
 }
 QPushButton#smallDanger:hover { background: #EFB4AE; }
-QLabel#pinIcon {
-    font-size: 20px;
-    padding: 0 4px;
-}
 QScrollArea { border: none; background: transparent; }
 QFrame#taskRow {
     background: white;
@@ -187,6 +183,36 @@ class AnimatedTextLabel(QLabel):
 
     def _apply_color(self) -> None:
         self.setStyleSheet(f"color:{self._cur_color.name()}; font-weight:600;")
+
+
+class PinIcon(QWidget):
+    """柔和的置顶图钉小图标（淡蓝色，不刺眼）。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(20, 26)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        w = float(self.width())
+        h = float(self.height())
+        color = QColor("#8FB8D4")
+
+        # 针
+        pen = QPen(color, max(1.5, w * 0.09))
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        painter.drawLine(QPointF(w * 0.5, h * 0.62), QPointF(w * 0.5, h * 0.95))
+
+        # 大头
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        painter.drawEllipse(QRectF(w * 0.12, h * 0.12, w * 0.76, w * 0.76))
+
+        # 顶部小钮
+        painter.drawRoundedRect(QRectF(w * 0.36, 0, w * 0.28, h * 0.20), 2, 2)
+        painter.end()
 
 
 class MainWindow(QMainWindow):
@@ -340,7 +366,14 @@ class MainWindow(QMainWindow):
         text_col.setSpacing(2)
         initial_color = "#9AA5AC" if done else (task.get("color") or "#1F3A4D")
         text_label = AnimatedTextLabel(task.get("text", ""), initial_color)
-        text_col.addWidget(text_label)
+        text_line = QHBoxLayout()
+        text_line.setSpacing(4)
+        text_line.addWidget(text_label, 1)
+        if task.get("pinned"):
+            pin_icon = PinIcon()
+            pin_icon.setToolTip("已置顶")
+            text_line.addWidget(pin_icon, 0, Qt.AlignTop)
+        text_col.addLayout(text_line)
         check.toggled.connect(
             lambda checked, t=task, lbl=text_label: self._on_toggle_done(
                 t, date_str, checked, lbl
@@ -378,11 +411,6 @@ class MainWindow(QMainWindow):
         lay.addWidget(pin_btn)
         lay.addWidget(edit_btn)
         lay.addWidget(del_btn)
-        if task.get("pinned"):
-            pin_icon = QLabel("📌")
-            pin_icon.setObjectName("pinIcon")
-            pin_icon.setToolTip("已置顶")
-            lay.addWidget(pin_icon)
 
         return row
 
