@@ -80,10 +80,13 @@ class MiniModeTestCase(unittest.TestCase):
         self.assertTrue((window.windowFlags() & Qt.Tool) == Qt.Tool)
         # 迷你窗口不置顶（降低存在感）
         self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        # 点击不激活、不跳到最前
+        self.assertTrue(window.windowFlags() & Qt.WindowDoesNotAcceptFocus)
 
         window._exit_mini_mode()
         self.assertFalse((window.windowFlags() & Qt.Tool) == Qt.Tool)
         self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        self.assertFalse(window.windowFlags() & Qt.WindowDoesNotAcceptFocus)
 
     def test_mini_pin_toggle(self):
         window = MainWindow()
@@ -91,6 +94,7 @@ class MiniModeTestCase(unittest.TestCase):
         self.assertFalse(window.data["settings"].get("mini_pinned", False))
         # 迷你窗口不置顶（降低存在感）
         self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        self.assertTrue(window.windowFlags() & Qt.WindowDoesNotAcceptFocus)
         self.assertTrue((window.windowFlags() & Qt.Tool) == Qt.Tool)
 
         window._toggle_mini_pin()

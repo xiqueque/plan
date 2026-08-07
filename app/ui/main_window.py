@@ -369,6 +369,7 @@ class MainWindow(QMainWindow):
             self.move(geo.right() - self.width() - 24, geo.top() + 24)
         self.setWindowFlag(Qt.Tool, True)  # 迷你窗口不显示在任务栏
         self.setWindowFlag(Qt.WindowStaysOnTopHint, False)  # 迷你窗口不置顶，降低存在感
+        self.setWindowFlag(Qt.WindowDoesNotAcceptFocus, True)  # 点击不激活、不跳到最前
         self.show()
 
     def _exit_mini_mode(self) -> None:
@@ -381,6 +382,7 @@ class MainWindow(QMainWindow):
         self.setWindowOpacity(1.0)
         self.setMinimumSize(480, 340)
         self.setWindowFlag(Qt.Tool, False)
+        self.setWindowFlag(Qt.WindowDoesNotAcceptFocus, False)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, self._full_topmost())
         if self._full_geometry is not None:
             self.setGeometry(self._full_geometry)
