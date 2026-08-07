@@ -109,8 +109,10 @@ class ImageTestCase(unittest.TestCase):
         self.assertEqual(len(thumbs), 2)
 
         # 软件内重命名
-        window._rename_day_image(names[0], "课程表")
-        self.assertEqual(window.data["image_names"][names[0]], "课程表")
+        # 重命名：支持中文、英文与 ASCII 字符（仅显示名，不改原文件）
+        window._rename_day_image(names[0], "课程表 Class 2026 #1")
+        self.assertEqual(window.data["image_names"][names[0]], "课程表 Class 2026 #1")
+        self.assertTrue(storage.image_path(names[0]).exists())  # 原文件未变
 
         # 删除一张 -> 剩一张
         window._delete_day_image(names[0])

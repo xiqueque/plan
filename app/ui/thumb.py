@@ -155,7 +155,11 @@ class ThumbButton(QFrame):
 
     def _rename(self) -> None:
         text, ok = QInputDialog.getText(
-            self, "重命名图片", "新名称：", text=self.display_name
+            self,
+            "重命名图片",
+            "给这张图片一个新名字（仅改显示名，不会修改原文件）：\n"
+            "支持中文、英文和 ASCII 字符",
+            text=self.display_name,
         )
         if ok and text.strip():
             self.renamed.emit(str(self.path), text.strip())

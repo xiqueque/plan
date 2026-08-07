@@ -23,6 +23,13 @@ from .style import CHECKBOX_QSS
 
 AUDIO_FILTER = "音频文件 (*.wav *.mp3)"
 
+SETTINGS_QSS = CHECKBOX_QSS + """
+QLabel#hintLabel {
+    color: #6B8CA3;
+    font-size: 12px;
+}
+"""
+
 
 class SettingsDialog(QDialog):
     def __init__(
@@ -39,7 +46,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.setMinimumWidth(460)
-        self.setStyleSheet(CHECKBOX_QSS)
+        self.setStyleSheet(SETTINGS_QSS)
 
         self.check_sound = sound_file or ""
         self._default_sound_name = default_sound_name
@@ -110,9 +117,11 @@ class SettingsDialog(QDialog):
             self.viewer_combo.setCurrentIndex(1)
         self._update_viewer_enabled()
 
-        layout.addWidget(QLabel("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
+        layout.addWidget(self._hint("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
 
-        layout.addWidget(QLabel("注意：标记为「每天重复」的计划不会被自动删除。"))
+        layout.addWidget(
+            self._hint("注意：标记为「每天重复」的计划不会被自动删除。")
+        )
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         buttons.button(QDialogButtonBox.Save).setText("保存")
@@ -127,6 +136,12 @@ class SettingsDialog(QDialog):
                 return f"默认音频（{self._default_sound_name}）"
             return "默认音频"
         return Path(self.check_sound).name
+
+    def _hint(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("hintLabel")
+        label.setWordWrap(True)
+        return label
 
     def _update_sound_label(self) -> None:
         self.sound_label.setText(self._sound_text())
