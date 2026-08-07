@@ -31,12 +31,22 @@ class StorageTestCase(unittest.TestCase):
         self.assertEqual(loaded["tasks"][0]["text"], "写作业")
         self.assertEqual(loaded["tasks"][0]["time_start"], "09:00")
 
-    def test_settings_roundtrip_check_sound(self):
+    def test_settings_roundtrip_sound(self):
         data = storage.empty_data()
-        data["settings"]["check_sound"] = r"C:\audio\ding.mp3"
+        data["settings"]["sound_file"] = r"C:\audio\ding.mp3"
+        data["settings"]["sound_volume"] = 65
         storage.save_data(data)
         loaded = storage.load_data()
-        self.assertEqual(loaded["settings"]["check_sound"], r"C:\audio\ding.mp3")
+        self.assertEqual(loaded["settings"]["sound_file"], r"C:\audio\ding.mp3")
+        self.assertEqual(loaded["settings"]["sound_volume"], 65)
+
+    def test_migrate_check_sound_to_sound_file(self):
+        data = storage.empty_data()
+        data["settings"]["check_sound"] = r"C:\audio\old.mp3"
+        storage.save_data(data)
+        loaded = storage.load_data()
+        self.assertNotIn("check_sound", loaded["settings"])
+        self.assertEqual(loaded["settings"]["sound_file"], r"C:\audio\old.mp3")
 
     def test_daily_task_appears_every_day(self):
         data = storage.empty_data()

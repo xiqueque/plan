@@ -36,6 +36,7 @@ except Exception:
 
 WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
 SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "check.wav"
+DEFAULT_SOUND_FILE = Path(r"C:\Users\Junhong\Music\8月7日.mp3")
 BASE_TASK_FONT_PX = 18
 
 APP_QSS = """
@@ -430,21 +431,33 @@ class MainWindow(QMainWindow):
         anim.start()
 
     def _play_check_sound(self) -> None:
-        sound = self.data.get("settings", {}).get("check_sound", "")
-        self._play_sound_file(sound)
+        self._play_sound_file()
 
-    def _play_sound_file(self, path: str = "") -> None:
-        """播放完成音效：优先使用设置中的本地音频，否则播放内置音效。"""
+    def _play_sound_file(self, path: str = "", volume: int | None = None) -> None:
+        """播放音效：优先设置中的音频，其次默认音频（Music 文件夹），最后内置音效。"""
         path = (path or "").strip()
         if not path:
+            path = self.data.get("settings", {}).get("sound_file", "") or ""
+        if not path or not Path(path).exists():
+            if DEFAULT_SOUND_FILE.exists():
+                path = str(DEFAULT_SOUND_FILE)
+        if not path or not Path(path).exists():
             path = str(SOUND_FILE)
         if not Path(path).exists():
             return
+
+        if volume is None:
+            try:
+                volume = int(self.data.get("settings", {}).get("sound_volume", 80))
+            except (TypeError, ValueError):
+                volume = 80
+        volume = max(0, min(100, volume))
 
         # 首选 Qt 多媒体（支持 wav / mp3）
         if _HAS_QT_MULTIMEDIA:
             try:
                 self._ensure_player()
+                self._audio_output.setVolume(volume / 100.0)
                 self._player.stop()
                 self._player.setSource(QUrl.fromLocalFile(path))
                 self._player.play()
@@ -473,6 +486,9 @@ class MainWindow(QMainWindow):
             alias = "dailyplan_sound"
             winmm.mciSendStringW("close " + alias, None, 0, None)
             winmm.mciSendStringW(f'open "{path}" alias {alias}', None, 0, None)
+            winmm.mciSendStringW(
+                f"setaudio {alias} volume to {volume * 10}", None, 0, None
+            )
             winmm.mciSendStringW("play " + alias, None, 0, None)
         except Exception:
             pass
@@ -562,13 +578,16 @@ class MainWindow(QMainWindow):
         dialog = SettingsDialog(
             self,
             settings.get("cleanup_days", 15),
-            settings.get("check_sound", ""),
+            settings.get("sound_file", ""),
+            settings.get("sound_volume", 80),
+            DEFAULT_SOUND_FILE.name if DEFAULT_SOUND_FILE.exists() else "",
             self._play_sound_file,
         )
         if dialog.exec() != SettingsDialog.Accepted:
             return
         settings["cleanup_days"] = dialog.cleanup_days()
-        settings["check_sound"] = dialog.sound_path()
+        settings["sound_file"] = dialog.sound_path()
+        settings["sound_volume"] = dialog.sound_volume()
         storage.save_data(self.data)
         removed = storage.run_cleanup(self.data)
         if removed:

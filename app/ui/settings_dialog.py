@@ -1,8 +1,9 @@
-"""设置对话框：自动清理天数、完成音效。"""
+"""设置对话框：自动清理天数、音效（音频 + 音量）。"""
 from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QSlider,
     QSpinBox,
     QVBoxLayout,
 )
@@ -22,14 +24,17 @@ class SettingsDialog(QDialog):
         self,
         parent=None,
         cleanup_days: int = 15,
-        check_sound: str = "",
+        sound_file: str = "",
+        sound_volume: int = 80,
+        default_sound_name: str = "",
         on_preview=None,
     ):
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.setMinimumWidth(460)
 
-        self.check_sound = check_sound or ""
+        self.check_sound = sound_file or ""
+        self._default_sound_name = default_sound_name
         self._on_preview = on_preview
 
         layout = QVBoxLayout(self)
@@ -44,9 +49,9 @@ class SettingsDialog(QDialog):
         cleanup_row.addWidget(self.days_spin)
         layout.addLayout(cleanup_row)
 
-        # 完成音效
+        # 音效音频
         sound_row = QHBoxLayout()
-        sound_row.addWidget(QLabel("完成音效："))
+        sound_row.addWidget(QLabel("音效音频："))
         self.sound_label = QLabel(self._sound_text())
         sound_row.addWidget(self.sound_label, 1)
         self.choose_btn = QPushButton("选择音频…")
@@ -59,7 +64,22 @@ class SettingsDialog(QDialog):
         sound_row.addWidget(self.preview_btn)
         sound_row.addWidget(self.reset_btn)
         layout.addLayout(sound_row)
-        layout.addWidget(QLabel("提示：勾选任务完成时播放所选音频，支持 wav / mp3。"))
+
+        # 音量
+        volume_row = QHBoxLayout()
+        volume_row.addWidget(QLabel("音效音量："))
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(sound_volume if 0 <= sound_volume <= 100 else 80)
+        self.volume_label = QLabel(f"{self.volume_slider.value()}%")
+        self.volume_slider.valueChanged.connect(
+            lambda v: self.volume_label.setText(f"{v}%")
+        )
+        volume_row.addWidget(self.volume_slider, 1)
+        volume_row.addWidget(self.volume_label)
+        layout.addLayout(volume_row)
+
+        layout.addWidget(QLabel("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
 
         layout.addWidget(QLabel("注意：标记为「每天重复」的计划不会被自动删除。"))
 
@@ -72,7 +92,9 @@ class SettingsDialog(QDialog):
 
     def _sound_text(self) -> str:
         if not self.check_sound:
-            return "内置可爱音效（默认）"
+            if self._default_sound_name:
+                return f"默认音频（{self._default_sound_name}）"
+            return "默认音频"
         return Path(self.check_sound).name
 
     def _update_sound_label(self) -> None:
@@ -88,7 +110,7 @@ class SettingsDialog(QDialog):
 
     def _preview_sound(self) -> None:
         if self._on_preview:
-            self._on_preview(self.check_sound)
+            self._on_preview(self.check_sound, self.volume_slider.value())
 
     def _reset_sound(self) -> None:
         self.check_sound = ""
@@ -99,3 +121,6 @@ class SettingsDialog(QDialog):
 
     def sound_path(self) -> str:
         return self.check_sound
+
+    def sound_volume(self) -> int:
+        return self.volume_slider.value()

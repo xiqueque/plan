@@ -12,7 +12,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DATA_FILE = DATA_DIR / "plan.json"
 
-DEFAULT_SETTINGS = {"cleanup_days": 15}
+DEFAULT_SETTINGS = {"cleanup_days": 15, "sound_volume": 80}
 
 
 def today_str() -> str:
@@ -66,6 +66,12 @@ def load_data() -> dict:
     data.setdefault("settings", dict(DEFAULT_SETTINGS))
     data.setdefault("tasks", [])
     data.setdefault("done", {})
+    settings = data["settings"]
+    # 兼容旧版本：check_sound -> sound_file
+    if "check_sound" in settings and "sound_file" not in settings:
+        settings["sound_file"] = settings.pop("check_sound")
+    settings.setdefault("sound_file", "")
+    settings.setdefault("sound_volume", 80)
     return data
 
 
