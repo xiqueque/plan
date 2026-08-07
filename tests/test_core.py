@@ -31,6 +31,13 @@ class StorageTestCase(unittest.TestCase):
         self.assertEqual(loaded["tasks"][0]["text"], "写作业")
         self.assertEqual(loaded["tasks"][0]["time_start"], "09:00")
 
+    def test_settings_roundtrip_check_sound(self):
+        data = storage.empty_data()
+        data["settings"]["check_sound"] = r"C:\audio\ding.mp3"
+        storage.save_data(data)
+        loaded = storage.load_data()
+        self.assertEqual(loaded["settings"]["check_sound"], r"C:\audio\ding.mp3")
+
     def test_daily_task_appears_every_day(self):
         data = storage.empty_data()
         daily = storage.new_task("喝水", storage.today_str(), is_daily=True)

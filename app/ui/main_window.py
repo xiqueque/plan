@@ -5,7 +5,7 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QVariantAnimation
+from PySide6.QtCore import QPointF, QRectF, Qt, QUrl, QVariantAnimation
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -26,6 +26,13 @@ from ..core import storage
 from .calendar_dialog import CalendarDialog
 from .settings_dialog import SettingsDialog
 from .task_dialog import TaskDialog
+
+try:
+    from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+
+    _HAS_QT_MULTIMEDIA = True
+except Exception:
+    _HAS_QT_MULTIMEDIA = False
 
 WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
 SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "check.wav"
@@ -423,17 +430,59 @@ class MainWindow(QMainWindow):
         anim.start()
 
     def _play_check_sound(self) -> None:
-        if not SOUND_FILE.exists():
+        sound = self.data.get("settings", {}).get("check_sound", "")
+        self._play_sound_file(sound)
+
+    def _play_sound_file(self, path: str = "") -> None:
+        """播放完成音效：优先使用设置中的本地音频，否则播放内置音效。"""
+        path = (path or "").strip()
+        if not path:
+            path = str(SOUND_FILE)
+        if not Path(path).exists():
             return
+
+        # 首选 Qt 多媒体（支持 wav / mp3）
+        if _HAS_QT_MULTIMEDIA:
+            try:
+                self._ensure_player()
+                self._player.stop()
+                self._player.setSource(QUrl.fromLocalFile(path))
+                self._player.play()
+                return
+            except Exception:
+                pass
+
+        # 备用 1：wav 用系统播放
         try:
             import winsound
 
-            winsound.PlaySound(
-                str(SOUND_FILE),
-                winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT,
-            )
+            if path.lower().endswith(".wav"):
+                winsound.PlaySound(
+                    path,
+                    winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT,
+                )
+                return
         except Exception:
             pass
+
+        # 备用 2：其他格式尝试系统 MCI 播放
+        try:
+            import ctypes
+
+            winmm = ctypes.windll.winmm
+            alias = "dailyplan_sound"
+            winmm.mciSendStringW("close " + alias, None, 0, None)
+            winmm.mciSendStringW(f'open "{path}" alias {alias}', None, 0, None)
+            winmm.mciSendStringW("play " + alias, None, 0, None)
+        except Exception:
+            pass
+
+    def _ensure_player(self) -> None:
+        if getattr(self, "_player", None) is None:
+            self._player = QMediaPlayer(self)
+            self._audio_output = QAudioOutput(self)
+            self._audio_output.setVolume(1.0)
+            self._player.setAudioOutput(self._audio_output)
 
     def _on_toggle_pin(self, task: dict) -> None:
         task["pinned"] = not task.get("pinned")
@@ -509,10 +558,17 @@ class MainWindow(QMainWindow):
         self._rebuild_list()
 
     def open_settings(self) -> None:
-        dialog = SettingsDialog(self, self.data["settings"].get("cleanup_days", 15))
+        settings = self.data["settings"]
+        dialog = SettingsDialog(
+            self,
+            settings.get("cleanup_days", 15),
+            settings.get("check_sound", ""),
+            self._play_sound_file,
+        )
         if dialog.exec() != SettingsDialog.Accepted:
             return
-        self.data["settings"]["cleanup_days"] = dialog.cleanup_days()
+        settings["cleanup_days"] = dialog.cleanup_days()
+        settings["check_sound"] = dialog.sound_path()
         storage.save_data(self.data)
         removed = storage.run_cleanup(self.data)
         if removed:
