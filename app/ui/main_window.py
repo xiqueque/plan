@@ -95,16 +95,20 @@ QPushButton#primary {
 }
 QPushButton#primary:hover { background: #6FB1CE; }
 QPushButton#smallBtn {
-    padding: 3px 6px;
-    font-size: 13px;
+    padding: 7px 14px;
+    font-size: 15px;
 }
 QPushButton#smallDanger {
-    padding: 3px 6px;
-    font-size: 13px;
+    padding: 7px 14px;
+    font-size: 15px;
     background: #F4C7C3;
     border-color: #D9A29C;
 }
 QPushButton#smallDanger:hover { background: #EFB4AE; }
+QLabel#pinIcon {
+    font-size: 20px;
+    padding: 0 4px;
+}
 QScrollArea { border: none; background: transparent; }
 QFrame#taskRow {
     background: white;
@@ -374,6 +378,11 @@ class MainWindow(QMainWindow):
         lay.addWidget(pin_btn)
         lay.addWidget(edit_btn)
         lay.addWidget(del_btn)
+        if task.get("pinned"):
+            pin_icon = QLabel("📌")
+            pin_icon.setObjectName("pinIcon")
+            pin_icon.setToolTip("已置顶")
+            lay.addWidget(pin_icon)
 
         return row
 
