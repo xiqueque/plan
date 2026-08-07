@@ -394,6 +394,8 @@ class MainWindow(QMainWindow):
             self.setGeometry(self._full_geometry)
         self._mini_mode = False
         self.show()
+        if self._full_topmost():
+            self._force_topmost()
 
     def _build_mini_widget(self) -> QWidget:
         """桌面右上角的半透明迷你窗口内容。"""
@@ -534,6 +536,28 @@ class MainWindow(QMainWindow):
             ctypes.windll.user32.SetWindowPos(
                 ctypes.c_void_p(hwnd),
                 ctypes.c_void_p(HWND_NOTOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            )
+        except Exception:
+            pass
+
+    def _force_topmost(self) -> None:
+        """展开后若开启了「总在最前」，用系统 API 确保真正置顶。"""
+        try:
+            import ctypes
+
+            hwnd = int(self.winId())
+            HWND_TOPMOST = -1
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_NOACTIVATE = 0x0010
+            ctypes.windll.user32.SetWindowPos(
+                ctypes.c_void_p(hwnd),
+                ctypes.c_void_p(HWND_TOPMOST),
                 0,
                 0,
                 0,
@@ -1195,6 +1219,8 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(build_main_qss(self.theme))
         self.setWindowFlag(Qt.WindowStaysOnTopHint, topmost)
         self.show()
+        if topmost:
+            self._force_topmost()
         removed = storage.run_cleanup(self.data)
         if removed:
             storage.save_data(self.data)
