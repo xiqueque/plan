@@ -357,7 +357,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._build_mini_widget())
         screen = self.screen() or QGuiApplication.primaryScreen()
         geo = screen.availableGeometry() if screen else None
-        self.resize(380, 300)
+        self.setMinimumSize(260, 180)
+        self.resize(320, 240)
         if geo is not None:
             self.move(geo.right() - self.width() - 24, geo.top() + 24)
         try:
@@ -375,6 +376,7 @@ class MainWindow(QMainWindow):
             mini.deleteLater()
         self.setCentralWidget(self._full_central)
         self.setWindowOpacity(1.0)
+        self.setMinimumSize(480, 340)
         if self._full_geometry is not None:
             self.setGeometry(self._full_geometry)
         self._mini_mode = False
@@ -386,19 +388,31 @@ class MainWindow(QMainWindow):
         widget.setObjectName("central")
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(6)
+        layout.setSpacing(8)
 
         header = QHBoxLayout()
-        date_label = QLabel(self.format_date(self.current_date))
-        date_label.setStyleSheet(
-            f"font-size:16px; font-weight:bold; color:{self.theme.text};"
+        date_col = QVBoxLayout()
+        date_col.setSpacing(0)
+        big_date = QLabel(
+            f"{self.current_date.month}月{self.current_date.day}日"
         )
+        big_date.setStyleSheet(
+            f"font-size:30px; font-weight:bold; color:{self.theme.text};"
+        )
+        sub_date = QLabel(
+            f"{self.current_date.year}年 · {WEEKDAYS[self.current_date.weekday()]}"
+        )
+        sub_date.setStyleSheet(
+            f"font-size:15px; font-weight:bold; color:{self.theme.hint};"
+        )
+        date_col.addWidget(big_date)
+        date_col.addWidget(sub_date)
+        header.addLayout(date_col)
+        header.addStretch(1)
         expand_btn = QPushButton("↗ 展开")
         expand_btn.setObjectName("smallBtn")
         expand_btn.clicked.connect(self._exit_mini_mode)
-        header.addWidget(date_label)
-        header.addStretch(1)
-        header.addWidget(expand_btn)
+        header.addWidget(expand_btn, 0, Qt.AlignTop)
         layout.addLayout(header)
 
         scroll = QScrollArea()
@@ -418,10 +432,11 @@ class MainWindow(QMainWindow):
             done = storage.is_done(self.data, task["id"], date_str)
             color = "#9AA5AC" if done else (task.get("color") or self.theme.text)
             deco = " text-decoration: line-through;" if done else ""
-            label = QLabel(task.get("text", ""))
+            mark = "✓ " if done else "□ "
+            label = QLabel(mark + task.get("text", ""))
             label.setWordWrap(True)
             label.setStyleSheet(
-                f"font-size:14px; font-weight:600; color:{color};{deco}"
+                f"font-size:17px; font-weight:bold; color:{color};{deco}"
             )
             vbox.addWidget(label)
         vbox.addStretch(1)
