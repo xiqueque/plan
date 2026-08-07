@@ -33,9 +33,9 @@ class ThemeTestCase(unittest.TestCase):
                 p,
                 [(230, 246, 252), (127, 184, 212), (173, 216, 230), (31, 58, 77)],
             )
-            t = theme.extract_theme(p, 1)
-            self.assertEqual(t.name, "主题 1")
+            t = theme.extract_theme(p)
             self.assertEqual(t.id, p.stem)
+            self.assertEqual(t.name, "")
             for color in (t.bg, t.border, t.button, t.text, t.hint, t.card):
                 self.assertRegex(color, r"^#[0-9A-F]{6}$")
 
@@ -46,6 +46,9 @@ class ThemeTestCase(unittest.TestCase):
                 make_image(folder / f"c{i}.png", [(i * 40, 120, 200), (20, 40, 90)])
             themes = theme.load_themes(folder)
             self.assertEqual(len(themes), 2)
+            names = [t.name for t in themes.values()]
+            self.assertTrue(all(len(n) == 4 for n in names))
+            self.assertEqual(len(set(names)), len(names))
             theme_id = next(iter(themes))
             t = theme.get_theme({"theme": theme_id}, themes)
             self.assertEqual(t.id, theme_id)

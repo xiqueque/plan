@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import random
+import colorsys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,10 +12,31 @@ from PySide6.QtGui import QImage
 THEME_FOLDER = Path(r"C:\Users\Junhong\Pictures\peise")
 DEFAULT_THEME_ID = "默认淡蓝"
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
+THEME_NAMES = [
+    "碧海晴空",
+    "青翠山林",
+    "暖阳橙光",
+    "桃粉春色",
+    "紫霞暮色",
+    "金秋麦浪",
+    "冰川银雪",
+    "莓果甜心",
+]
 
 
 def _hex(rgb) -> str:
     return "#{:02X}{:02X}{:02X}".format(*rgb)
+
+
+def _from_hex(hex_color: str):
+    h = hex_color.lstrip("#")
+    return tuple(int(h[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def _hue(rgb) -> float:
+    r, g, b = (v / 255.0 for v in rgb)
+    h, _, _ = colorsys.rgb_to_hsv(r, g, b)
+    return h
 
 
 def _luminance(rgb) -> float:
@@ -108,7 +130,7 @@ def _extract_colors(image_path: Path) -> list:
     return centers
 
 
-def extract_theme(image_path: Path, index: int) -> Theme:
+def extract_theme(image_path: Path) -> Theme:
     """从一张图片生成一套主题配色。"""
     colors = _extract_colors(image_path)
     bg = _lighten(colors[0], 0.30)
@@ -123,7 +145,7 @@ def extract_theme(image_path: Path, index: int) -> Theme:
     hint = _blend(text, (255, 255, 255), 0.45)
     return Theme(
         id=image_path.stem,
-        name=f"主题 {index}",
+        name="",
         bg=_hex(bg),
         border=_hex(border),
         button=_hex(button),
@@ -151,12 +173,17 @@ def load_themes(folder: Path = THEME_FOLDER) -> dict:
             for f in folder.iterdir()
             if f.is_file() and f.suffix.lower() in IMAGE_EXTS
         )
-        for i, f in enumerate(files, start=1):
+        items = []
+        for f in files:
             try:
-                theme = extract_theme(f, i)
-                themes[theme.id] = theme
+                t = extract_theme(f)
+                items.append((_hue(_from_hex(t.border)), t))
             except Exception:
                 continue
+        items.sort(key=lambda x: x[0])
+        for i, (_, t) in enumerate(items):
+            t.name = THEME_NAMES[i % len(THEME_NAMES)]
+            themes[t.id] = t
     _cache[key] = dict(themes)
     return dict(themes)
 

@@ -172,6 +172,9 @@ class MainWindow(QMainWindow):
         self._drag_offset = None
         self._quitting = False
         self._tray_hint_shown = False
+        self._mini_mode = False
+        self._full_geometry = None
+        self._full_central = None
 
         self._build_ui()
         self.refresh()
@@ -215,11 +218,12 @@ class MainWindow(QMainWindow):
         self.min_btn = QPushButton("—")
         self.min_btn.setObjectName("winBtn")
         self.min_btn.setToolTip("最小化到托盘")
-        self.min_btn.clicked.connect(self._hide_to_tray)
+        self.min_btn.setToolTip("最小化（可设置收托盘）")
+        self.min_btn.clicked.connect(self._on_minimize)
         self.close_btn = QPushButton("✕")
         self.close_btn.setObjectName("winClose")
-        self.close_btn.setToolTip("关闭（最小化到托盘）")
-        self.close_btn.clicked.connect(self._hide_to_tray)
+        self.close_btn.setToolTip("关闭（可设置直接退出）")
+        self.close_btn.clicked.connect(self._on_close)
         top.addWidget(self.min_btn)
         top.addWidget(self.close_btn)
         root.addLayout(top)
@@ -324,9 +328,111 @@ class MainWindow(QMainWindow):
             self._show_from_tray()
 
     def _show_from_tray(self) -> None:
+        if self._mini_mode:
+            self._exit_mini_mode()
         self.show()
         self.raise_()
         self.activateWindow()
+
+    def _on_minimize(self) -> None:
+        action = self.data.get("settings", {}).get("minimize_action", "mini")
+        if action == "mini":
+            self._enter_mini_mode()
+        else:
+            self._hide_to_tray()
+
+    def _on_close(self) -> None:
+        action = self.data.get("settings", {}).get("close_action", "tray")
+        if action == "quit":
+            self._quit()
+        else:
+            self._hide_to_tray()
+
+    def _enter_mini_mode(self) -> None:
+        if self._mini_mode:
+            return
+        self._full_central = self.takeCentralWidget()
+        self._full_geometry = self.geometry()
+        self._mini_mode = True
+        self.setCentralWidget(self._build_mini_widget())
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        geo = screen.availableGeometry() if screen else None
+        self.resize(380, 300)
+        if geo is not None:
+            self.move(geo.right() - self.width() - 24, geo.top() + 24)
+        try:
+            opacity = int(self.data.get("settings", {}).get("mini_opacity", 80))
+        except (TypeError, ValueError):
+            opacity = 80
+        self.setWindowOpacity(max(0.3, min(1.0, opacity / 100.0)))
+        self.show()
+
+    def _exit_mini_mode(self) -> None:
+        if not self._mini_mode:
+            return
+        mini = self.takeCentralWidget()
+        if mini is not None:
+            mini.deleteLater()
+        self.setCentralWidget(self._full_central)
+        self.setWindowOpacity(1.0)
+        if self._full_geometry is not None:
+            self.setGeometry(self._full_geometry)
+        self._mini_mode = False
+        self.show()
+
+    def _build_mini_widget(self) -> QWidget:
+        """桌面右上角的半透明迷你窗口内容。"""
+        widget = QWidget()
+        widget.setObjectName("central")
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        header = QHBoxLayout()
+        date_label = QLabel(self.format_date(self.current_date))
+        date_label.setStyleSheet(
+            f"font-size:16px; font-weight:bold; color:{self.theme.text};"
+        )
+        expand_btn = QPushButton("↗ 展开")
+        expand_btn.setObjectName("smallBtn")
+        expand_btn.clicked.connect(self._exit_mini_mode)
+        header.addWidget(date_label)
+        header.addStretch(1)
+        header.addWidget(expand_btn)
+        layout.addLayout(header)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        container = QWidget()
+        vbox = QVBoxLayout(container)
+        vbox.setContentsMargins(2, 2, 2, 2)
+        vbox.setSpacing(4)
+        date_str = self.current_date.isoformat()
+        tasks = storage.tasks_for_date(self.data, date_str)
+        if not tasks:
+            hint = QLabel("今日暂无计划")
+            hint.setStyleSheet(f"color:{self.theme.hint}; padding:10px;")
+            vbox.addWidget(hint)
+        for task in tasks:
+            done = storage.is_done(self.data, task["id"], date_str)
+            color = "#9AA5AC" if done else (task.get("color") or self.theme.text)
+            deco = " text-decoration: line-through;" if done else ""
+            label = QLabel(task.get("text", ""))
+            label.setWordWrap(True)
+            label.setStyleSheet(
+                f"font-size:14px; font-weight:600; color:{color};{deco}"
+            )
+            vbox.addWidget(label)
+        vbox.addStretch(1)
+        scroll.setWidget(container)
+        layout.addWidget(scroll, 1)
+
+        bottom = QHBoxLayout()
+        bottom.addStretch(1)
+        bottom.addWidget(QSizeGrip(self), 0, Qt.AlignBottom | Qt.AlignRight)
+        layout.addLayout(bottom)
+        return widget
 
     def _hide_to_tray(self) -> None:
         self.hide()
@@ -350,7 +456,18 @@ class MainWindow(QMainWindow):
             event.accept()
             return
         event.ignore()
-        self._hide_to_tray()
+        action = self.data.get("settings", {}).get("close_action", "tray")
+        if action == "quit":
+            self._quit()
+        else:
+            self._hide_to_tray()
+
+    def mouseDoubleClickEvent(self, event):
+        if self._mini_mode:
+            self._exit_mini_mode()
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -858,6 +975,9 @@ class MainWindow(QMainWindow):
             [(t.id, t.name) for t in self._themes.values()],
             settings.get("theme", theme.DEFAULT_THEME_ID),
             bool(settings.get("topmost", False)),
+            settings.get("minimize_action", "mini"),
+            settings.get("close_action", "tray"),
+            settings.get("mini_opacity", 80),
             self._play_sound_file,
         )
         if dialog.exec() != SettingsDialog.Accepted:
@@ -870,6 +990,9 @@ class MainWindow(QMainWindow):
             image_viewer,
             theme_id,
             topmost,
+            minimize_action,
+            close_action,
+            mini_opacity,
         ) = dialog.values()
         settings["cleanup_days"] = days
         settings["sound_file"] = sound_path
@@ -877,6 +1000,9 @@ class MainWindow(QMainWindow):
         settings["image_viewer"] = image_viewer
         settings["theme"] = theme_id
         settings["topmost"] = topmost
+        settings["minimize_action"] = minimize_action
+        settings["close_action"] = close_action
+        settings["mini_opacity"] = mini_opacity
         storage.save_data(self.data)
         try:
             if start_on_boot:

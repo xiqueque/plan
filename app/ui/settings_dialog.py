@@ -45,6 +45,9 @@ class SettingsDialog(QDialog):
         themes=None,
         current_theme: str = DEFAULT_THEME_ID,
         topmost: bool = False,
+        minimize_action: str = "mini",
+        close_action: str = "tray",
+        mini_opacity: int = 80,
         on_preview=None,
     ):
         super().__init__(parent)
@@ -138,6 +141,41 @@ class SettingsDialog(QDialog):
         self.topmost_check.setChecked(topmost)
         layout.addWidget(self.topmost_check)
 
+        # 最小化 / 关闭行为
+        behavior_row = QHBoxLayout()
+        behavior_row.addWidget(QLabel("最小化按钮："))
+        self.minimize_combo = QComboBox()
+        self.minimize_combo.addItem("桌面右上角（半透明迷你）", "mini")
+        self.minimize_combo.addItem("收进系统托盘", "tray")
+        idx = self.minimize_combo.findData(minimize_action)
+        if idx >= 0:
+            self.minimize_combo.setCurrentIndex(idx)
+        behavior_row.addWidget(self.minimize_combo, 1)
+        behavior_row.addWidget(QLabel("关闭按钮："))
+        self.close_combo = QComboBox()
+        self.close_combo.addItem("收进系统托盘", "tray")
+        self.close_combo.addItem("直接退出程序", "quit")
+        idx = self.close_combo.findData(close_action)
+        if idx >= 0:
+            self.close_combo.setCurrentIndex(idx)
+        behavior_row.addWidget(self.close_combo, 1)
+        layout.addLayout(behavior_row)
+
+        opacity_row = QHBoxLayout()
+        opacity_row.addWidget(QLabel("迷你窗口不透明度："))
+        self.opacity_slider = QSlider(Qt.Horizontal)
+        self.opacity_slider.setRange(30, 100)
+        self.opacity_slider.setValue(
+            mini_opacity if 30 <= mini_opacity <= 100 else 80
+        )
+        self.opacity_label = QLabel(f"{self.opacity_slider.value()}%")
+        self.opacity_slider.valueChanged.connect(
+            lambda v: self.opacity_label.setText(f"{v}%")
+        )
+        opacity_row.addWidget(self.opacity_slider, 1)
+        opacity_row.addWidget(self.opacity_label)
+        layout.addLayout(opacity_row)
+
         layout.addWidget(self._hint("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
 
         layout.addWidget(
@@ -218,4 +256,7 @@ class SettingsDialog(QDialog):
             self.image_viewer(),
             self.theme_combo.currentData() or DEFAULT_THEME_ID,
             self.topmost_check.isChecked(),
+            self.minimize_combo.currentData() or "mini",
+            self.close_combo.currentData() or "tray",
+            self.opacity_slider.value(),
         )
