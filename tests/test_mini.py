@@ -142,6 +142,29 @@ class MiniModeTestCase(unittest.TestCase):
         window._on_toggle_done(task, today, True, label, check)
         self.assertTrue(storage.is_done(window.data, task["id"], today))
 
+    def test_mini_double_click_does_not_expand(self):
+        window = MainWindow()
+        window._enter_mini_mode()
+        event = QMouseEvent(
+            QEvent.MouseButtonDblClick,
+            QPointF(50, 50),
+            QPointF(150, 150),
+            Qt.LeftButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+        )
+        window.mouseDoubleClickEvent(event)
+        self.assertTrue(window._mini_mode)  # 双击不会展开
+        window._exit_mini_mode()
+
+    def test_mini_never_topmost_after_reenter(self):
+        window = MainWindow()
+        window._enter_mini_mode()
+        window._exit_mini_mode()
+        window._enter_mini_mode()
+        self.assertFalse(window.windowFlags() & Qt.WindowStaysOnTopHint)
+        window._exit_mini_mode()
+
 
 if __name__ == "__main__":
     unittest.main()

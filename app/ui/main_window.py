@@ -573,13 +573,6 @@ class MainWindow(QMainWindow):
         else:
             self._hide_to_tray()
 
-    def mouseDoubleClickEvent(self, event):
-        if self._mini_mode:
-            self._exit_mini_mode()
-            event.accept()
-            return
-        super().mouseDoubleClickEvent(event)
-
     def mousePressEvent(self, event):
         if self._mini_mode and self._mini_pinned():
             # 固定状态：锁定位置，不可拖动
