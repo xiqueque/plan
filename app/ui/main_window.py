@@ -370,7 +370,9 @@ class MainWindow(QMainWindow):
         self.setWindowFlag(Qt.Tool, True)  # 迷你窗口不显示在任务栏
         self.setWindowFlag(Qt.WindowStaysOnTopHint, False)  # 迷你窗口不置顶，降低存在感
         self.setWindowFlag(Qt.WindowDoesNotAcceptFocus, True)  # 点击不激活、不跳到最前
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.show()
+        self._force_not_topmost()
 
     def _exit_mini_mode(self) -> None:
         if not self._mini_mode:
@@ -383,6 +385,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(480, 340)
         self.setWindowFlag(Qt.Tool, False)
         self.setWindowFlag(Qt.WindowDoesNotAcceptFocus, False)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, False)
         self.setWindowFlag(Qt.WindowStaysOnTopHint, self._full_topmost())
         if self._full_geometry is not None:
             self.setGeometry(self._full_geometry)
@@ -514,6 +517,28 @@ class MainWindow(QMainWindow):
 
     def _full_topmost(self) -> bool:
         return bool(self.data.get("settings", {}).get("topmost", False))
+
+    def _force_not_topmost(self) -> None:
+        """用系统 API 强制解除置顶，防止 Windows 残留置顶状态。"""
+        try:
+            import ctypes
+
+            hwnd = int(self.winId())
+            HWND_NOTOPMOST = -2
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_NOACTIVATE = 0x0010
+            ctypes.windll.user32.SetWindowPos(
+                ctypes.c_void_p(hwnd),
+                ctypes.c_void_p(HWND_NOTOPMOST),
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+            )
+        except Exception:
+            pass
 
     def _mini_pinned(self) -> bool:
         return bool(self.data.get("settings", {}).get("mini_pinned", False))
