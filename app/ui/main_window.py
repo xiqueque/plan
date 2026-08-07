@@ -4,7 +4,8 @@ from __future__ import annotations
 import time
 from datetime import date, timedelta
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -28,8 +29,8 @@ WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "�
 
 APP_QSS = """
 QWidget {
-    font-family: "Microsoft YaHei";
-    font-size: 14px;
+    font-family: "幼圆", "Microsoft YaHei", "微软雅黑", sans-serif;
+    font-size: 15px;
     color: #1F3A4D;
 }
 QMainWindow, QWidget#central, QDialog, QMessageBox {
@@ -38,7 +39,7 @@ QMainWindow, QWidget#central, QDialog, QMessageBox {
 QPushButton#dateLabel {
     border: none;
     background: transparent;
-    font-size: 18px;
+    font-size: 20px;
     font-weight: bold;
     text-align: left;
     padding: 0;
@@ -50,10 +51,11 @@ QLabel#emptyLabel {
     padding: 24px;
 }
 QLabel#taskText {
-    font-size: 15px;
+    font-size: 18px;
+    font-weight: 500;
 }
 QLabel#timeLabel {
-    font-size: 12px;
+    font-size: 13px;
     color: #6B8CA3;
 }
 QLineEdit, QSpinBox {
@@ -79,11 +81,11 @@ QPushButton#primary {
 QPushButton#primary:hover { background: #6FB1CE; }
 QPushButton#smallBtn {
     padding: 3px 8px;
-    font-size: 12px;
+    font-size: 13px;
 }
 QPushButton#smallDanger {
     padding: 3px 8px;
-    font-size: 12px;
+    font-size: 13px;
     background: #F4C7C3;
     border-color: #D9A29C;
 }
@@ -95,6 +97,41 @@ QFrame#taskRow {
     border-radius: 8px;
 }
 """
+
+
+class BigCheckBox(QCheckBox):
+    """自绘的大号圆角完成勾选框（更醒目、更可爱）。"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(30, 30)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        w = float(self.width())
+        h = float(self.height())
+        rect = QRectF(1.5, 1.5, w - 3.0, h - 3.0)
+        if self.isChecked():
+            painter.setPen(QPen(QColor("#5FA8CC"), 2))
+            painter.setBrush(QColor("#7FB8D4"))
+        else:
+            painter.setPen(QPen(QColor("#7FB8D4"), 2))
+            painter.setBrush(QColor("#FFFFFF"))
+        painter.drawRoundedRect(rect, 8, 8)
+        if self.isChecked():
+            pen = QPen(QColor("#FFFFFF"), max(2.5, w * 0.11))
+            pen.setCapStyle(Qt.RoundCap)
+            pen.setJoinStyle(Qt.RoundJoin)
+            painter.setPen(pen)
+            painter.drawLine(
+                QPointF(w * 0.24, h * 0.53), QPointF(w * 0.44, h * 0.72)
+            )
+            painter.drawLine(
+                QPointF(w * 0.44, h * 0.72), QPointF(w * 0.76, h * 0.30)
+            )
+        painter.end()
 
 
 class MainWindow(QMainWindow):
@@ -227,7 +264,7 @@ class MainWindow(QMainWindow):
         lay.setSpacing(6)
 
         done = storage.is_done(self.data, task["id"], date_str)
-        check = QCheckBox()
+        check = BigCheckBox()
         check.setToolTip("标记完成")
         check.blockSignals(True)
         check.setChecked(done)
