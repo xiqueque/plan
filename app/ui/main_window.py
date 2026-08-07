@@ -5,7 +5,7 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, QVariantAnimation
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -28,6 +28,8 @@ from .settings_dialog import SettingsDialog
 from .task_dialog import TaskDialog
 
 WEEKDAYS = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+SOUND_FILE = Path(__file__).resolve().parent / "assets" / "check.wav"
+BASE_TASK_FONT_PX = 18
 
 APP_QSS = """
 QWidget {
@@ -82,11 +84,11 @@ QPushButton#primary {
 }
 QPushButton#primary:hover { background: #6FB1CE; }
 QPushButton#smallBtn {
-    padding: 3px 8px;
+    padding: 3px 6px;
     font-size: 13px;
 }
 QPushButton#smallDanger {
-    padding: 3px 8px;
+    padding: 3px 6px;
     font-size: 13px;
     background: #F4C7C3;
     border-color: #D9A29C;
@@ -151,12 +153,33 @@ class BigCheckBox(QCheckBox):
         painter.end()
 
 
+class AnimatedTextLabel(QLabel):
+    """任务文字标签：支持颜色渐变与完成切换小动画。"""
+
+    def __init__(self, text: str, color: str, parent=None):
+        super().__init__(text, parent)
+        self._cur_color = QColor(color)
+        self.setWordWrap(True)
+        self.setObjectName("taskText")
+        self._apply_color()
+
+    def current_color(self) -> QColor:
+        return QColor(self._cur_color)
+
+    def set_animated_color(self, color) -> None:
+        self._cur_color = QColor(color)
+        self._apply_color()
+
+    def _apply_color(self) -> None:
+        self.setStyleSheet(f"color:{self._cur_color.name()}; font-weight:600;")
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("每日计划")
         self.resize(820, 540)
-        self.setMinimumSize(680, 420)
+        self.setMinimumSize(480, 340)
 
         self.data = storage.load_data()
         removed = storage.run_cleanup(self.data)
@@ -293,9 +316,8 @@ class MainWindow(QMainWindow):
 
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
-        text_label = QLabel(task.get("text", ""))
-        text_label.setWordWrap(True)
-        text_label.setObjectName("taskText")
+        initial_color = "#9AA5AC" if done else (task.get("color") or "#1F3A4D")
+        text_label = AnimatedTextLabel(task.get("text", ""), initial_color)
         text_col.addWidget(text_label)
         check.toggled.connect(
             lambda checked, t=task, lbl=text_label: self._on_toggle_done(
@@ -332,13 +354,6 @@ class MainWindow(QMainWindow):
         lay.addWidget(edit_btn)
         lay.addWidget(del_btn)
 
-        if done:
-            text_label.setStyleSheet(
-                "color:#9AA5AC; text-decoration: line-through; font-weight:600;"
-            )
-        else:
-            color = task.get("color") or "#1F3A4D"
-            text_label.setStyleSheet(f"color:{color}; font-weight:600;")
         return row
 
     # ---------- 操作 ----------
@@ -347,14 +362,78 @@ class MainWindow(QMainWindow):
     ) -> None:
         storage.set_done(self.data, task["id"], date_str, checked)
         storage.save_data(self.data)
-        # 只更新文字样式，不重建列表：勾选更跟手、不跳动
         if checked:
-            text_label.setStyleSheet(
-                "color:#9AA5AC; text-decoration: line-through; font-weight:600;"
+            self._play_check_sound()
+        self._animate_task_text(text_label, task, checked)
+
+    def _animate_task_text(
+        self, label: AnimatedTextLabel, task: dict, checked: bool
+    ) -> None:
+        """完成 / 未完成切换：颜色渐变 + 字体轻微弹跳，过渡不生硬。"""
+        start = label.current_color()
+        end = QColor("#9AA5AC") if checked else QColor(task.get("color") or "#1F3A4D")
+
+        anim = QVariantAnimation(self)
+        anim.setDuration(260)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+
+        def safe_stop() -> None:
+            try:
+                anim.stop()
+            except RuntimeError:
+                pass
+
+        label.destroyed.connect(safe_stop)
+        anim.finished.connect(anim.deleteLater)
+
+        def on_value(v: float) -> None:
+            try:
+                color = QColor(
+                    round(start.red() + (end.red() - start.red()) * v),
+                    round(start.green() + (end.green() - start.green()) * v),
+                    round(start.blue() + (end.blue() - start.blue()) * v),
+                )
+                label.set_animated_color(color)
+                if v < 0.5:
+                    size = BASE_TASK_FONT_PX + round(6 * v * 2)
+                else:
+                    size = BASE_TASK_FONT_PX + round(6 * (1 - (v - 0.5) * 2))
+                font = label.font()
+                font.setPixelSize(max(12, size))
+                label.setFont(font)
+            except RuntimeError:
+                safe_stop()
+
+        def on_finish() -> None:
+            try:
+                font = label.font()
+                font.setPixelSize(BASE_TASK_FONT_PX)
+                label.setFont(font)
+                label.set_animated_color(end)
+                if checked:
+                    label.setStyleSheet(
+                        "color:#9AA5AC; text-decoration: line-through; font-weight:600;"
+                    )
+            except RuntimeError:
+                pass
+
+        anim.valueChanged.connect(on_value)
+        anim.finished.connect(on_finish)
+        anim.start()
+
+    def _play_check_sound(self) -> None:
+        if not SOUND_FILE.exists():
+            return
+        try:
+            import winsound
+
+            winsound.PlaySound(
+                str(SOUND_FILE),
+                winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT,
             )
-        else:
-            color = task.get("color") or "#1F3A4D"
-            text_label.setStyleSheet(f"color:{color}; font-weight:600;")
+        except Exception:
+            pass
 
     def _on_toggle_pin(self, task: dict) -> None:
         task["pinned"] = not task.get("pinned")

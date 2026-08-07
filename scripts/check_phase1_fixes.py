@@ -33,10 +33,17 @@ def main() -> None:
     window = MainWindow()
     window.show()
     app.processEvents()
+    window._play_check_sound = lambda: None  # 测试期间不发声
 
     boxes = window.findChildren(BigCheckBox)
     assert boxes, "未找到勾选框"
     box = boxes[0]
+
+    # 0) 最小窗口尺寸应为 480x340
+    assert (window.minimumWidth(), window.minimumHeight()) == (480, 340), (
+        f"最小尺寸不符：{window.minimumWidth()}x{window.minimumHeight()}"
+    )
+    print("min size OK")
 
     # 1) 整个 30x30 区域都应可点击
     assert box.hitButton(QPoint(28, 28)), "勾选框角落点击区域未生效"
@@ -49,9 +56,17 @@ def main() -> None:
     app.processEvents()
     assert box.isChecked(), "第一次点击未勾选成功"
     assert storage.is_done(window.data, task["id"], today), "完成状态未保存"
+    # 等待动画完成，确认出现划线（完成样式）
+    QTest.qWait(450)
+    labels = [lbl for lbl in window.findChildren(QLabel) if lbl.objectName() == "taskText"]
+    assert labels and "line-through" in labels[0].styleSheet(), "完成划线样式未生效"
+    print("done style OK")
     QTest.mouseClick(box, Qt.LeftButton, Qt.NoModifier, QPoint(15, 15))
     app.processEvents()
     assert not box.isChecked(), "第二次点击未取消勾选"
+    QTest.qWait(450)
+    labels = [lbl for lbl in window.findChildren(QLabel) if lbl.objectName() == "taskText"]
+    assert labels and "line-through" not in labels[0].styleSheet(), "取消勾选后划线未移除"
     print("click toggle OK")
 
     # 3) 任务文字加粗（weight 600 -> Qt 内部 DemiBold=63）
