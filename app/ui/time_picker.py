@@ -5,6 +5,7 @@ import time as _time
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -21,6 +22,21 @@ QLabel#timeDisplay { font-size:28px; font-weight:bold; color:#1F3A4D; }
 QListWidget { background:white; border:1px solid #7FB8D4; border-radius:8px; font-size:16px; }
 QListWidget::item { padding:4px 2px; }
 QListWidget::item:selected { background:#ADD8E6; color:#1F3A4D; }
+QListWidget QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 3px;
+}
+QListWidget QScrollBar::handle:vertical {
+    background: #B9DCEC;
+    border-radius: 5px;
+    min-height: 24px;
+}
+QListWidget QScrollBar::handle:vertical:hover { background: #7FB8D4; }
+QListWidget QScrollBar::add-line:vertical,
+QListWidget QScrollBar::sub-line:vertical { height: 0; }
+QListWidget QScrollBar::add-page:vertical,
+QListWidget QScrollBar::sub-page:vertical { background: transparent; }
 QPushButton { background:#ADD8E6; border:1px solid #7FB8D4; border-radius:8px; padding:7px 16px; }
 QPushButton:hover { background:#9CCFE0; }
 """
@@ -66,6 +82,9 @@ class TimePickerDialog(QDialog):
         cols = QHBoxLayout()
         self.hour_list = QListWidget()
         self.minute_list = QListWidget()
+        for lst in (self.hour_list, self.minute_list):
+            lst.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+            lst.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         for h in range(24):
             self.hour_list.addItem(QListWidgetItem(f"{h:02d}"))
         for m in range(60):

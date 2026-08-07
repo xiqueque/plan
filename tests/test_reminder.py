@@ -6,7 +6,7 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QAbstractItemView, QApplication
 
 from app.core import storage
 from app.core.reminder import ReminderScheduler
@@ -154,6 +154,9 @@ class ReminderTestCase(unittest.TestCase):
         dialog.hour_list.setCurrentRow(12)
         dialog.minute_list.setCurrentRow(45)
         self.assertEqual(dialog.selected_time(), "12:45")
+        self.assertEqual(
+            dialog.hour_list.verticalScrollMode(), QAbstractItemView.ScrollPerPixel
+        )
         dialog.close()
 
     def test_popup_constructs_and_closes(self):
