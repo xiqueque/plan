@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -52,9 +53,9 @@ APP_ICON = Path(__file__).resolve().parent.parent / "assets" / "app_icon.ico"
 class BigCheckBox(QCheckBox):
     """自绘的大号圆角完成勾选框（更醒目、更可爱）。"""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, size: int = 36):
         super().__init__(parent)
-        self.setFixedSize(36, 36)
+        self.setFixedSize(size, size)
         self.setCursor(Qt.PointingHandCursor)
         self.setMouseTracking(True)
         self._hover = False
@@ -361,11 +362,6 @@ class MainWindow(QMainWindow):
         self.resize(320, 240)
         if geo is not None:
             self.move(geo.right() - self.width() - 24, geo.top() + 24)
-        try:
-            opacity = int(self.data.get("settings", {}).get("mini_opacity", 80))
-        except (TypeError, ValueError):
-            opacity = 80
-        self.setWindowOpacity(max(0.3, min(1.0, opacity / 100.0)))
         self.show()
 
     def _exit_mini_mode(self) -> None:
@@ -386,6 +382,7 @@ class MainWindow(QMainWindow):
         """桌面右上角的半透明迷你窗口内容。"""
         widget = QWidget()
         widget.setObjectName("central")
+        widget.setStyleSheet(self._mini_bg_qss())
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
@@ -415,39 +412,112 @@ class MainWindow(QMainWindow):
         header.addWidget(expand_btn, 0, Qt.AlignTop)
         layout.addLayout(header)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        container = QWidget()
-        vbox = QVBoxLayout(container)
-        vbox.setContentsMargins(2, 2, 2, 2)
-        vbox.setSpacing(4)
-        date_str = self.current_date.isoformat()
-        tasks = storage.tasks_for_date(self.data, date_str)
-        if not tasks:
-            hint = QLabel("今日暂无计划")
-            hint.setStyleSheet(f"color:{self.theme.hint}; padding:10px;")
-            vbox.addWidget(hint)
-        for task in tasks:
-            done = storage.is_done(self.data, task["id"], date_str)
-            color = "#9AA5AC" if done else (task.get("color") or self.theme.text)
-            deco = " text-decoration: line-through;" if done else ""
-            mark = "✓ " if done else "□ "
-            label = QLabel(mark + task.get("text", ""))
-            label.setWordWrap(True)
-            label.setStyleSheet(
-                f"font-size:17px; font-weight:bold; color:{color};{deco}"
-            )
-            vbox.addWidget(label)
-        vbox.addStretch(1)
-        scroll.setWidget(container)
-        layout.addWidget(scroll, 1)
+        self._mini_scroll = QScrollArea()
+        self._mini_scroll.setWidgetResizable(True)
+        self._mini_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._mini_tasks_container = QWidget()
+        self._mini_tasks_grid = QGridLayout(self._mini_tasks_container)
+        self._mini_tasks_grid.setContentsMargins(2, 2, 2, 2)
+        self._mini_tasks_grid.setHorizontalSpacing(8)
+        self._mini_tasks_grid.setVerticalSpacing(6)
+        self._mini_scroll.setWidget(self._mini_tasks_container)
+        layout.addWidget(self._mini_scroll, 1)
+        self._refresh_mini_tasks()
 
         bottom = QHBoxLayout()
         bottom.addStretch(1)
         bottom.addWidget(QSizeGrip(self), 0, Qt.AlignBottom | Qt.AlignRight)
         layout.addLayout(bottom)
         return widget
+
+    def _mini_bg_qss(self) -> str:
+        """迷你窗口半透明背景：只影响背景，不影响文字与按钮。"""
+        try:
+            opacity = int(self.data.get("settings", {}).get("mini_opacity", 80))
+        except (TypeError, ValueError):
+            opacity = 80
+        opacity = max(30, min(100, opacity))
+        alpha = round(255 * opacity / 100)
+        bg = QColor(self.theme.bg)
+        return (
+            f"QWidget#central {{ background: rgba({bg.red()},{bg.green()},"
+            f"{bg.blue()},{alpha}); border: 2px solid {self.theme.border}; "
+            "border-radius: 16px; }"
+        )
+
+    def _refresh_mini_tasks(self) -> None:
+        while self._mini_tasks_grid.count():
+            item = self._mini_tasks_grid.takeAt(0)
+            if item.widget():
+                widget = item.widget()
+                widget.setParent(None)
+                widget.deleteLater()
+
+        date_str = self.current_date.isoformat()
+        tasks = storage.tasks_for_date(self.data, date_str)
+        if not tasks:
+            hint = QLabel("今日暂无计划")
+            hint.setStyleSheet(f"color:{self.theme.hint}; padding:10px;")
+            self._mini_tasks_grid.addWidget(hint, 0, 0, 1, 2)
+            return
+        for i, task in enumerate(tasks):
+            self._mini_tasks_grid.addWidget(
+                self._make_mini_task_cell(task, date_str), i // 2, i % 2
+            )
+        self._mini_tasks_grid.setColumnStretch(0, 1)
+        self._mini_tasks_grid.setColumnStretch(1, 1)
+
+    def _make_mini_task_cell(self, task: dict, date_str: str) -> QWidget:
+        cell = QWidget()
+        vbox = QVBoxLayout(cell)
+        vbox.setContentsMargins(4, 4, 4, 4)
+        vbox.setSpacing(2)
+
+        done = storage.is_done(self.data, task["id"], date_str)
+        color = "#9AA5AC" if done else (task.get("color") or self.theme.text)
+        deco = " text-decoration: line-through;" if done else ""
+
+        row = QHBoxLayout()
+        row.setSpacing(4)
+        check = BigCheckBox(size=26)
+        check.blockSignals(True)
+        check.setChecked(done)
+        check.blockSignals(False)
+        check.toggled.connect(
+            lambda checked, t=task: self._on_mini_toggle(t, checked)
+        )
+        row.addWidget(check, 0, Qt.AlignTop)
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(2)
+        label = QLabel(task.get("text", ""))
+        label.setWordWrap(True)
+        label.setStyleSheet(
+            f"font-size:16px; font-weight:bold; color:{color};{deco}"
+        )
+        text_col.addWidget(label)
+        time_text = ""
+        if task.get("time_start"):
+            time_text = task["time_start"]
+            if task.get("time_end"):
+                time_text += f" – {task['time_end']}"
+        if time_text:
+            time_label = QLabel(time_text)
+            time_label.setStyleSheet("color:#A8B4BF; font-size:12px;")
+            text_col.addWidget(time_label)
+        text_col.addStretch(1)
+        row.addLayout(text_col, 1)
+        vbox.addLayout(row)
+        return cell
+
+    def _on_mini_toggle(self, task: dict, checked: bool) -> None:
+        storage.set_done(
+            self.data, task["id"], self.current_date.isoformat(), checked
+        )
+        storage.save_data(self.data)
+        if checked:
+            self._play_check_sound()
+        self._refresh_mini_tasks()
 
     def _hide_to_tray(self) -> None:
         self.hide()

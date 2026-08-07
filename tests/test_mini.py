@@ -56,6 +56,28 @@ class MiniModeTestCase(unittest.TestCase):
         self.assertEqual(values[8], "tray")  # 关闭默认托盘
         self.assertEqual(values[9], 80)  # 迷你不透明度默认 80%
 
+    def test_mini_two_columns_and_toggle(self):
+        data = storage.empty_data()
+        today = date.today().isoformat()
+        for i in range(4):
+            data["tasks"].append(
+                storage.new_task(f"任务{i}", today, "09:00", "10:00")
+            )
+        storage.save_data(data)
+
+        window = MainWindow()
+        window._play_check_sound = lambda: None
+        window._enter_mini_mode()
+
+        self.assertEqual(window._mini_tasks_grid.columnCount(), 2)
+        self.assertIn("rgba(", window.centralWidget().styleSheet())
+
+        task = window.data["tasks"][0]
+        window._on_mini_toggle(task, True)
+        self.assertTrue(storage.is_done(window.data, task["id"], today))
+
+        window._exit_mini_mode()
+
 
 if __name__ == "__main__":
     unittest.main()
