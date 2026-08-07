@@ -448,9 +448,9 @@ class MainWindow(QMainWindow):
 
         if volume is None:
             try:
-                volume = int(self.data.get("settings", {}).get("sound_volume", 50))
+                volume = int(self.data.get("settings", {}).get("sound_volume", 12))
             except (TypeError, ValueError):
-                volume = 50
+                volume = 12
         volume = max(0, min(100, volume))
 
         # 首选 Qt 多媒体（支持 wav / mp3）
@@ -579,7 +579,7 @@ class MainWindow(QMainWindow):
             self,
             settings.get("cleanup_days", 15),
             settings.get("sound_file", ""),
-            settings.get("sound_volume", 50),
+            settings.get("sound_volume", 12),
             DEFAULT_SOUND_FILE.name if DEFAULT_SOUND_FILE.exists() else "",
             self._play_sound_file,
         )
