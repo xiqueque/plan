@@ -1,11 +1,16 @@
-"""按键交互提示音：使用 Music 文件夹的 8月8日.mp3。"""
+"""按键交互提示音：优先使用随程序自带的裁剪版（去掉开头静音）。"""
 from __future__ import annotations
 
 from pathlib import Path
 
 from PySide6.QtCore import QUrl
 
-CLICK_SOUND = Path(r"C:\Users\Junhong\Music\8月8日.mp3")
+_TRIMMED = Path(__file__).resolve().parent.parent / "assets" / "8月8日_裁剪.wav"
+CLICK_SOUND = (
+    _TRIMMED
+    if _TRIMMED.exists()
+    else Path(r"C:\Users\Junhong\Music\8月8日.mp3")
+)
 
 _player = None
 _audio = None
