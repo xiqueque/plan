@@ -1367,23 +1367,28 @@ class MainWindow(QMainWindow):
             settings.get("close_action", "tray"),
             settings.get("mini_opacity", 80),
             settings.get("complete_message", ""),
-            self._play_sound_file,
+            on_apply=lambda values: self._apply_settings(*values),
+            on_preview=self._play_sound_file,
         )
         if dialog.exec() != SettingsDialog.Accepted:
             return
-        (
-            days,
-            sound_path,
-            volume,
-            start_on_boot,
-            image_viewer,
-            theme_id,
-            topmost,
-            minimize_action,
-            close_action,
-            mini_opacity,
-            complete_message,
-        ) = dialog.values()
+        self._apply_settings(*dialog.values())
+
+    def _apply_settings(
+        self,
+        days,
+        sound_path,
+        volume,
+        start_on_boot,
+        image_viewer,
+        theme_id,
+        topmost,
+        minimize_action,
+        close_action,
+        mini_opacity,
+        complete_message,
+    ) -> None:
+        settings = self.data["settings"]
         settings["cleanup_days"] = days
         settings["sound_file"] = sound_path
         settings["sound_volume"] = volume

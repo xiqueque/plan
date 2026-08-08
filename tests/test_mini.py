@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPointF, Qt
 from PySide6.QtGui import QMouseEvent
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from app.core import storage
 from app.ui.main_window import AnimatedTextLabel, BigCheckBox, MainWindow
@@ -58,6 +58,19 @@ class MiniModeTestCase(unittest.TestCase):
         self.assertEqual(values[8], "tray")  # 关闭默认托盘
         self.assertEqual(values[9], 80)  # 迷你不透明度默认 80%
         self.assertIn("终于完成任务了耶", values[10])
+        texts = [b.text() for b in dialog.findChildren(QPushButton)]
+        self.assertIn("确认", texts)
+        self.assertIn("应用", texts)
+        self.assertIn("取消", texts)
+        dialog.close()
+
+    def test_settings_apply_callback(self):
+        applied = []
+        dialog = SettingsDialog(None, on_apply=lambda v: applied.append(v))
+        dialog._apply()
+        self.assertEqual(len(applied), 1)
+        self.assertEqual(len(applied[0]), 11)
+        dialog.close()
 
     def test_mini_two_columns_and_readonly(self):
         data = storage.empty_data()

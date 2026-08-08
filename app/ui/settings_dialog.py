@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
-    QDialogButtonBox,
     QFileDialog,
     QHBoxLayout,
     QLabel,
@@ -49,6 +48,7 @@ class SettingsDialog(QDialog):
         close_action: str = "tray",
         mini_opacity: int = 80,
         complete_message: str = "",
+        on_apply=None,
         on_preview=None,
     ):
         super().__init__(parent)
@@ -58,6 +58,7 @@ class SettingsDialog(QDialog):
 
         self.check_sound = sound_file or ""
         self._default_sound_name = default_sound_name
+        self._on_apply = on_apply
         self._on_preview = on_preview
 
         layout = QVBoxLayout(self)
@@ -194,12 +195,21 @@ class SettingsDialog(QDialog):
             self._hint("注意：标记为「每天重复」的计划不会被自动删除。")
         )
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Save).setText("保存")
-        buttons.button(QDialogButtonBox.Cancel).setText("取消")
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        buttons = QHBoxLayout()
+        ok_btn = QPushButton("确认")
+        apply_btn = QPushButton("应用")
+        cancel_btn = QPushButton("取消")
+        ok_btn.setToolTip("应用当前改动并关闭设置")
+        apply_btn.setToolTip("应用当前改动但不关闭设置")
+        cancel_btn.setToolTip("取消改动并关闭设置")
+        ok_btn.clicked.connect(self.accept)
+        apply_btn.clicked.connect(self._apply)
+        cancel_btn.clicked.connect(self.reject)
+        buttons.addStretch(1)
+        buttons.addWidget(ok_btn)
+        buttons.addWidget(apply_btn)
+        buttons.addWidget(cancel_btn)
+        layout.addLayout(buttons)
 
     def _sound_text(self) -> str:
         if not self.check_sound:
@@ -273,3 +283,8 @@ class SettingsDialog(QDialog):
             self.opacity_slider.value(),
             self.complete_msg_edit.text().strip(),
         )
+
+    def _apply(self) -> None:
+        """应用当前改动（不关闭窗口）。"""
+        if self._on_apply:
+            self._on_apply(self.values())
