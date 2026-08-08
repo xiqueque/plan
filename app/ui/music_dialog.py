@@ -98,19 +98,16 @@ class MusicPlayerDialog(QDialog):
         layout.addWidget(self.playlist, 1)
 
         controls = QHBoxLayout()
-        self.play_btn = QPushButton("▶ 播放")
-        self.pause_btn = QPushButton("⏸ 暂停")
+        self.toggle_btn = QPushButton("▶ 播放")
         self.stop_btn = QPushButton("⏹ 停止")
         self.prev_btn = QPushButton("⏮ 上一首")
         self.next_btn = QPushButton("⏭ 下一首")
-        self.play_btn.clicked.connect(self.play_current)
-        self.pause_btn.clicked.connect(self.toggle_pause)
+        self.toggle_btn.clicked.connect(self.toggle_play)
         self.stop_btn.clicked.connect(self.stop)
         self.prev_btn.clicked.connect(self.prev_track)
         self.next_btn.clicked.connect(self.next_track)
         for b in (
-            self.play_btn,
-            self.pause_btn,
+            self.toggle_btn,
             self.stop_btn,
             self.prev_btn,
             self.next_btn,
@@ -174,8 +171,7 @@ class MusicPlayerDialog(QDialog):
                 )
         else:
             for b in (
-                self.play_btn,
-                self.pause_btn,
+                self.toggle_btn,
                 self.stop_btn,
                 self.prev_btn,
                 self.next_btn,
@@ -211,22 +207,28 @@ class MusicPlayerDialog(QDialog):
         path = self._current_path()
         if not path or self._player is None:
             return
+        self._reset_progress()
         if restart:
             self._player.stop()
         self._player.setSource(QUrl.fromLocalFile(path))
         self._player.play()
 
-    def toggle_pause(self) -> None:
+    def toggle_play(self) -> None:
+        """播放/暂停切换：播放中按一下暂停，暂停或停止时按一下播放。"""
         if self._player is None:
             return
         if self._player.playbackState() == QMediaPlayer.PlayingState:
             self._player.pause()
+            return
+        if self._player.source().isEmpty():
+            self.play_current()
         else:
             self._player.play()
 
     def stop(self) -> None:
         if self._player is not None:
             self._player.stop()
+            self._reset_progress()
 
     def prev_track(self) -> None:
         self._step(-1)
@@ -361,27 +363,40 @@ class MusicPlayerDialog(QDialog):
 
     def _on_position(self, pos: int) -> None:
         self.seek_bar.setValue(pos)
-        # 时间标签节流：最多每 500ms 更新一次
-        if pos - self._last_label_ms >= 500:
+        # 时间标签节流：最多每 500ms 更新一次；重播/切歌回退时立即更新
+        if pos - self._last_label_ms >= 500 or pos < self._last_label_ms:
             self._last_label_ms = pos
             duration = self.seek_bar.maximum()
             self.time_label.setText(f"{_fmt(pos)} / {_fmt(duration)}")
 
     def _on_duration(self, duration: int) -> None:
         self.seek_bar.setRange(0, duration)
+        if self._player is not None:
+            self.time_label.setText(
+                f"{_fmt(self._player.position())} / {_fmt(duration)}"
+            )
+
+    def _reset_progress(self) -> None:
+        self.seek_bar.setValue(0)
+        self.time_label.setText("0:00 / 0:00")
+        self._last_label_ms = 0
 
     def _on_state(self, state) -> None:
         if state == QMediaPlayer.PlayingState:
             item = self.playlist.currentItem()
             name = item.text() if item else ""
             self.now_label.setText(f"♪ 正在播放：{name}")
+            self.toggle_btn.setText("⏸ 暂停")
             # 仅单曲循环需要轮询检测重播
             if self._mode() == "single":
                 self._loop_timer.start()
             else:
                 self._loop_timer.stop()
+        elif state == QMediaPlayer.PausedState:
+            self.toggle_btn.setText("▶ 播放")
         elif state == QMediaPlayer.StoppedState:
             self.now_label.setText("🎵 未播放")
+            self.toggle_btn.setText("▶ 播放")
             self._loop_timer.stop()
 
     def _check_single_loop(self) -> None:

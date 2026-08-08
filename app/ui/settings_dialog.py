@@ -186,7 +186,9 @@ class SettingsDialog(QDialog):
         msg_row.addWidget(self.complete_msg_edit, 1)
         layout.addLayout(msg_row)
 
-        layout.addWidget(self._hint("提示：勾选完成与到点提醒共用此音效；支持 wav / mp3。"))
+        layout.addWidget(
+            self._hint("提示：勾选完成、到点提醒、按键提示音共用此音效与音量；支持 wav / mp3。")
+        )
 
         layout.addWidget(
             self._hint("注意：标记为「每天重复」的计划不会被自动删除。")

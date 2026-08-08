@@ -7,8 +7,10 @@ from datetime import date
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtMultimedia import QMediaPlayer
 
 from app.core import storage
+from app.core import click_sound
 from app.ui.main_window import MainWindow
 from app.ui.music_dialog import MusicPlayerDialog
 from app.ui.notes_dialog import NotesDialog
@@ -41,6 +43,12 @@ class MusicTestCase(unittest.TestCase):
         dialog = MusicPlayerDialog(window)
         self.assertGreaterEqual(dialog.playlist.count(), 1)
         self.assertIn(window.theme.border, dialog.styleSheet())  # 配色跟随主题
+        self.assertEqual(dialog.toggle_btn.text(), "▶ 播放")
+        dialog._on_state(QMediaPlayer.PlayingState)
+        self.assertEqual(dialog.toggle_btn.text(), "⏸ 暂停")
+        dialog._reset_progress()
+        self.assertEqual(dialog.time_label.text(), "0:00 / 0:00")
+        self.assertEqual(dialog.seek_bar.value(), 0)
         dialog._on_volume(35)
         self.assertEqual(window.data["settings"]["music_volume"], 35)
         dialog.close()
@@ -56,6 +64,12 @@ class MusicTestCase(unittest.TestCase):
         loaded = storage.load_data()
         self.assertEqual(loaded["notes"], "记得买牛奶")
         dialog.close()
+
+    def test_click_volume_follows_settings(self):
+        data = storage.empty_data()
+        data["settings"]["sound_volume"] = 30
+        storage.save_data(data)
+        self.assertAlmostEqual(click_sound._current_volume(), 0.3, places=2)
 
     def test_music_modes_and_priority(self):
         data = storage.empty_data()

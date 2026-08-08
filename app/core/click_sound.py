@@ -12,10 +12,19 @@ CLICK_SOUND = (
     if _CUTE.exists()
     else (_TRIMMED_8_8 if _TRIMMED_8_8.exists() else Path(r"C:\Users\Junhong\Music\8月7日.mp3"))
 )
-VOLUME = 0.15
 
 _player = None
 _audio = None
+
+
+def _current_volume() -> float:
+    """音效音量跟随设置：设置里的「音效音量」统一控制所有音效。"""
+    try:
+        from ..core import storage
+
+        return int(storage.load_data().get("settings", {}).get("sound_volume", 12)) / 100.0
+    except Exception:
+        return 0.12
 
 
 def play_click_sound() -> None:
@@ -29,8 +38,10 @@ def play_click_sound() -> None:
         if _player is None:
             _player = QMediaPlayer()
             _audio = QAudioOutput()
-            _audio.setVolume(VOLUME)
+            _audio.setVolume(_current_volume())
             _player.setAudioOutput(_audio)
+        else:
+            _audio.setVolume(_current_volume())
         _player.stop()
         _player.setSource(QUrl.fromLocalFile(str(CLICK_SOUND)))
         _player.play()
@@ -57,7 +68,8 @@ def play_click_sound() -> None:
         alias = "dailyplan_click"
         winmm.mciSendStringW("close " + alias, None, 0, None)
         winmm.mciSendStringW(f'open "{CLICK_SOUND}" alias {alias}', None, 0, None)
-        winmm.mciSendStringW(f"setaudio {alias} volume to 500", None, 0, None)
+        volume = round(_current_volume() * 1000)
+        winmm.mciSendStringW(f"setaudio {alias} volume to {volume}", None, 0, None)
         winmm.mciSendStringW("play " + alias, None, 0, None)
     except Exception:
         pass
