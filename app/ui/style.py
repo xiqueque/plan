@@ -76,9 +76,11 @@ QLineEdit, QSpinBox {
 }
 QPushButton {
     background: $button;
-    border: 1px solid $border;
-    border-radius: 6px;
-    padding: 6px 12px;
+    border: 2px solid $border;
+    border-radius: 12px;
+    padding: 8px 16px;
+    font-size: 15px;
+    font-weight: 600;
 }
 QPushButton:hover { background: $button_hover; }
 QPushButton:pressed { background: $button_pressed; }
@@ -89,24 +91,33 @@ QPushButton#primary {
 }
 QPushButton#primary:hover { background: $button_pressed; }
 QPushButton#smallBtn {
-    padding: 7px 14px;
+    padding: 8px 14px;
     font-size: 15px;
+    font-weight: 600;
 }
 QPushButton#smallDanger {
-    padding: 7px 14px;
+    padding: 8px 14px;
     font-size: 15px;
     background: $danger;
     border-color: $danger_border;
 }
 QPushButton#smallDanger:hover { background: $danger_hover; }
 QPushButton#winBtn {
-    padding: 2px 10px;
-    font-size: 14px;
+    padding: 4px 12px;
+    font-size: 15px;
     background: transparent;
     border: none;
 }
 QPushButton#winBtn:hover { background: $button; }
 QPushButton#winClose:hover { background: $danger; color: #7A2E2A; }
+QPushButton#miniIcon {
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    padding: 3px;
+}
+QPushButton#miniIcon:hover { background: $button; }
 QScrollArea { border: none; background: transparent; }
 QFrame#taskRow {
     background: $card;
