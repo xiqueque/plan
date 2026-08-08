@@ -192,6 +192,45 @@ def format_weekdays(weekdays) -> str:
     return "（" + "、".join(names) + "）"
 
 
+def format_time_period(time_start: str | None, time_end: str | None) -> str:
+    """时间段显示：结束不早于开始；结束等于开始视为次日相同时刻（最晚 24 小时）。"""
+    if not time_start:
+        return ""
+    if not time_end:
+        return time_start
+    if time_end <= time_start:
+        return f"{time_start} – 次日{time_end}"
+    return f"{time_start} – {time_end}"
+
+
+def is_valid_period(time_start: str | None, time_end: str | None) -> bool:
+    """结束时间不能早于开始时间；最早只允许到次日相同时刻（结束=开始）。"""
+    if not time_start or not time_end:
+        return True
+    return time_end >= time_start
+
+
+def cleanup_orphan_images(data: dict) -> int:
+    """删除未被任何任务/图片区引用的图片文件，返回删除数量。"""
+    referenced = referenced_image_names(data)
+    removed = 0
+    if IMAGES_DIR.exists():
+        for f in IMAGES_DIR.iterdir():
+            if f.is_file() and f.name not in referenced:
+                try:
+                    f.unlink()
+                    removed += 1
+                except OSError:
+                    pass
+    data["image_names"] = {
+        k: v for k, v in data.get("image_names", {}).items() if k in referenced
+    }
+    data["image_daily"] = {
+        k: v for k, v in data.get("image_daily", {}).items() if k in referenced
+    }
+    return removed
+
+
 # ---------- 图片 ----------
 def import_image(src_path) -> str | None:
     """把图片复制到数据目录，返回存储文件名；失败返回 None。"""

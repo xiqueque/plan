@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time as _time
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -139,6 +139,9 @@ class TimePickerDialog(QDialog):
 class TimeButton(QPushButton):
     """大号时间按钮：点击弹出时间选择器，无需手动打字。"""
 
+    timeChanged = Signal(str)
+    timePicked = Signal(str)
+
     def __init__(self, time_str: str = "08:00", parent=None):
         super().__init__(parent)
         self.setStyleSheet(BUTTON_QSS)
@@ -149,8 +152,11 @@ class TimeButton(QPushButton):
 
     def set_time(self, time_str: str) -> None:
         hh, mm = parse_hhmm(time_str)
-        self._time = f"{hh:02d}:{mm:02d}"
-        self.setText(self._time)
+        new_time = f"{hh:02d}:{mm:02d}"
+        if new_time != self._time:
+            self._time = new_time
+            self.setText(self._time)
+            self.timeChanged.emit(self._time)
 
     def time(self) -> str:
         return self._time
@@ -159,3 +165,4 @@ class TimeButton(QPushButton):
         dialog = TimePickerDialog(self, self._time)
         if dialog.exec() == TimePickerDialog.Accepted:
             self.set_time(dialog.selected_time())
+            self.timePicked.emit(self._time)

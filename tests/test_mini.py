@@ -142,6 +142,31 @@ class MiniModeTestCase(unittest.TestCase):
         window._on_toggle_done(task, today, True, label, check)
         self.assertTrue(storage.is_done(window.data, task["id"], today))
 
+    def test_batch_pin_and_nail_icon(self):
+        data = storage.empty_data()
+        today = date.today().isoformat()
+        for i in range(3):
+            data["tasks"].append(storage.new_task(f"任务{i}", today))
+        storage.save_data(data)
+
+        window = MainWindow()
+        window.toggle_batch_mode()
+        self.assertTrue(window._batch_mode)
+        window._on_batch_select(window.data["tasks"][0]["id"], True)
+        window._on_batch_select(window.data["tasks"][1]["id"], True)
+        self.assertEqual(len(window._batch_selected), 2)
+
+        window.batch_pin()
+        pinned = [t for t in window.data["tasks"] if t.get("pinned")]
+        self.assertEqual(len(pinned), 2)
+
+        window._enter_mini_mode()
+        self.assertEqual(window.mini_pin_btn.text(), "")  # 钉子图标无文字
+        self.assertFalse(window.mini_pin_btn.icon().isNull())
+        window._exit_mini_mode()
+        window.exit_batch_mode()
+        self.assertFalse(window._batch_mode)
+
     def test_mini_double_click_does_not_expand(self):
         window = MainWindow()
         window._enter_mini_mode()

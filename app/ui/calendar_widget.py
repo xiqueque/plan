@@ -247,10 +247,9 @@ class DayDetailDialog(QDialog):
             deco = " text-decoration: line-through;" if done else ""
             text = task.get("text", "")
             extra = ""
-            if task.get("time_start"):
-                extra = task["time_start"]
-                if task.get("time_end"):
-                    extra += f" – {task['time_end']}"
+            extra = storage.format_time_period(
+                task.get("time_start"), task.get("time_end")
+            )
             if task.get("reminder_time"):
                 extra += (
                     (" · " if extra else "")

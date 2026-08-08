@@ -131,10 +131,9 @@ class MonthPlanDialog(QDialog):
     def _task_label(self, task: dict) -> QLabel:
         color = task.get("color") or "#1F3A4D"
         extra = ""
-        if task.get("time_start"):
-            extra = task["time_start"]
-            if task.get("time_end"):
-                extra += f" – {task['time_end']}"
+        extra = storage.format_time_period(
+            task.get("time_start"), task.get("time_end")
+        )
         if task.get("reminder_time"):
             extra += (" · " if extra else "") + "提醒 " + task["reminder_time"]
         text = task.get("text", "")

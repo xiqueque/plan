@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QRadioButton,
     QVBoxLayout,
@@ -28,6 +29,7 @@ from ..core.storage import (
     get_image_display_names,
     image_path,
     import_image,
+    is_valid_period,
     set_image_display_name,
 )
 from .style import CHECKBOX_QSS
@@ -59,6 +61,7 @@ class TaskDialog(QDialog):
 
         self.time_check = QCheckBox("设置时间段（可选）")
         layout.addWidget(self.time_check)
+        self._reminder_synced = True
 
         time_row = QHBoxLayout()
         self.start_btn = TimeButton("09:00")
@@ -68,7 +71,7 @@ class TaskDialog(QDialog):
         time_row.addWidget(QLabel("结束："))
         time_row.addWidget(self.end_btn, 1)
         layout.addLayout(time_row)
-        self.time_check.toggled.connect(self._update_time_enabled)
+        self.time_check.toggled.connect(self._on_time_period_toggled)
         self._update_time_enabled(False)
 
         # 提醒设置
@@ -94,6 +97,8 @@ class TaskDialog(QDialog):
         self.reminder_time_btn = TimeButton("08:00")
         remind_time_row.addWidget(self.reminder_time_btn, 1)
         reminder_layout.addLayout(remind_time_row)
+        self.start_btn.timeChanged.connect(self._on_start_time_changed)
+        self.reminder_time_btn.timePicked.connect(self._on_reminder_time_picked)
 
         weekday_label = QLabel("提醒日：")
         reminder_layout.addWidget(weekday_label)
@@ -192,11 +197,49 @@ class TaskDialog(QDialog):
             for name in task.get("images") or []:
                 if image_path(name).exists():
                     self._add_image_name(name, created=False)
+            self._reminder_synced = bool(task.get("reminder_time")) and (
+                task.get("reminder_time") == task.get("time_start")
+            )
         self._select_color((task or {}).get("color") or "#1F3A4D")
 
     def _update_time_enabled(self, enabled: bool) -> None:
         self.start_btn.setEnabled(enabled)
         self.end_btn.setEnabled(enabled)
+
+    def _on_time_period_toggled(self, enabled: bool) -> None:
+        self._update_time_enabled(enabled)
+        if enabled and self.mode_none.isChecked():
+            # 设置时间段后默认提醒，提醒时间 = 开始时间
+            self.mode_once.setChecked(True)
+            self._reminder_synced = True
+            self.reminder_time_btn.set_time(self.start_btn.time())
+
+    def _on_start_time_changed(self, new_time: str) -> None:
+        if self._reminder_synced and not self.mode_none.isChecked():
+            self.reminder_time_btn.set_time(new_time)
+
+    def _on_reminder_time_picked(self, _time: str) -> None:
+        # 手动改过提醒时间后，不再自动跟随开始时间
+        self._reminder_synced = False
+
+    def _period_error(self) -> str | None:
+        if not self.time_check.isChecked():
+            return None
+        if not is_valid_period(self.start_btn.time(), self.end_btn.time()):
+            return "结束时间不能早于开始时间。最晚可设为次日相同时刻（结束 = 开始）。"
+        return None
+
+    def accept(self) -> None:
+        error = self._period_error()
+        if error:
+            box = QMessageBox(self)
+            box.setWindowTitle("时间设置")
+            box.setText(error)
+            box.setIcon(QMessageBox.NoIcon)
+            box.addButton("好的", QMessageBox.AcceptRole)
+            box.exec()
+            return
+        super().accept()
 
     def _update_reminder_enabled(self) -> None:
         enabled = not self.mode_none.isChecked()

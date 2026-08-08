@@ -5,8 +5,27 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, QUrl, QVariantAnimation
-from PySide6.QtGui import QColor, QFont, QGuiApplication, QIcon, QPainter, QPen
+from PySide6.QtCore import (
+    QEasingCurve,
+    QPointF,
+    QPropertyAnimation,
+    QRectF,
+    QSize,
+    Qt,
+    QTimer,
+    QUrl,
+    QVariantAnimation,
+)
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QGuiApplication,
+    QIcon,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -30,6 +49,7 @@ from PySide6.QtWidgets import (
 from ..core import autostart, storage, theme
 from ..core.reminder import ReminderScheduler
 from .calendar_dialog import CalendarDialog
+from .batch_dialog import BatchDialog
 from .reminder_popup import ReminderPopup
 from .settings_dialog import SettingsDialog
 from .style import build_main_qss
@@ -48,6 +68,27 @@ SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "check.wav"
 DEFAULT_SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "8月7日_裁剪.wav"
 BASE_TASK_FONT_PX = 18
 APP_ICON = Path(__file__).resolve().parent.parent / "assets" / "app_icon.ico"
+
+
+def _make_nail_icon(color: str) -> QIcon:
+    """画一个扁平钉头 + 锥形钉身的钉子图标。"""
+    pixmap = QPixmap(28, 28)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor(color))
+    painter.drawRoundedRect(QRectF(5, 2, 18, 6), 2, 2)  # 钉头
+    path = QPainterPath()
+    path.moveTo(12, 6)
+    path.lineTo(16, 6)
+    path.lineTo(14.5, 20)
+    path.lineTo(12, 26)
+    path.lineTo(9.5, 20)
+    path.closeSubpath()
+    painter.drawPath(path)  # 钉身
+    painter.end()
+    return QIcon(pixmap)
 
 
 class BigCheckBox(QCheckBox):
@@ -176,6 +217,10 @@ class MainWindow(QMainWindow):
         self._mini_mode = False
         self._full_geometry = None
         self._full_central = None
+        self._batch_mode = False
+        self._batch_selected: set = set()
+        self._pop_anim = None
+        self._popped_initial = False
 
         self._build_ui()
         self.refresh()
@@ -266,6 +311,33 @@ class MainWindow(QMainWindow):
         self.image_scroll.hide()  # 默认折叠，只留一行
         root.addWidget(self.image_scroll)
 
+        # 批量编辑栏
+        self.batch_bar = QWidget()
+        bb = QHBoxLayout(self.batch_bar)
+        bb.setContentsMargins(0, 0, 0, 0)
+        self.batch_label = QLabel("已选 0 条")
+        self.batch_label.setStyleSheet("font-weight:bold;")
+        self.batch_modify_btn = QPushButton("批量修改")
+        self.batch_modify_btn.setObjectName("smallBtn")
+        self.batch_modify_btn.clicked.connect(self.batch_modify)
+        self.batch_pin_btn = QPushButton("批量置顶")
+        self.batch_pin_btn.setObjectName("smallBtn")
+        self.batch_pin_btn.clicked.connect(self.batch_pin)
+        self.batch_delete_btn = QPushButton("批量删除")
+        self.batch_delete_btn.setObjectName("smallDanger")
+        self.batch_delete_btn.clicked.connect(self.batch_delete)
+        self.batch_exit_btn = QPushButton("退出批量")
+        self.batch_exit_btn.setObjectName("smallBtn")
+        self.batch_exit_btn.clicked.connect(self.exit_batch_mode)
+        bb.addWidget(self.batch_label)
+        bb.addStretch(1)
+        bb.addWidget(self.batch_modify_btn)
+        bb.addWidget(self.batch_pin_btn)
+        bb.addWidget(self.batch_delete_btn)
+        bb.addWidget(self.batch_exit_btn)
+        self.batch_bar.hide()
+        root.addWidget(self.batch_bar)
+
         # 计划列表（滚动区域）
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -298,6 +370,10 @@ class MainWindow(QMainWindow):
         self.month_btn.setToolTip("查看月度计划")
         self.month_btn.clicked.connect(self.open_month_plan)
         bottom.addWidget(self.month_btn)
+        self.batch_btn = QPushButton("批量编辑")
+        self.batch_btn.setObjectName("smallBtn")
+        self.batch_btn.clicked.connect(self.toggle_batch_mode)
+        bottom.addWidget(self.batch_btn)
         bottom.addWidget(self.settings_btn)
         bottom.addWidget(QSizeGrip(self), 0, Qt.AlignBottom | Qt.AlignRight)
         root.addLayout(bottom)
@@ -381,6 +457,7 @@ class MainWindow(QMainWindow):
         # 沉到其他窗口后面：迷你窗口永不抢在最前
         self.lower()
         QTimer.singleShot(0, self.lower)
+        self._pop_in(1.0)
 
     def _exit_mini_mode(self) -> None:
         if not self._mini_mode:
@@ -389,6 +466,9 @@ class MainWindow(QMainWindow):
         if mini is not None:
             mini.deleteLater()
         self.setCentralWidget(self._full_central)
+        if self._pop_anim is not None:
+            self._pop_anim.stop()
+            self._pop_anim = None
         self.setWindowOpacity(1.0)
         self.setMinimumSize(480, 340)
         self.setWindowFlag(Qt.Tool, False)
@@ -431,9 +511,11 @@ class MainWindow(QMainWindow):
         date_col.addWidget(sub_date)
         header.addLayout(date_col)
         header.addStretch(1)
-        self.mini_pin_btn = QPushButton("…")
+        self.mini_pin_btn = QPushButton()
         self.mini_pin_btn.setObjectName("winBtn")
-        self.mini_pin_btn.setToolTip("固定（置顶）")
+        self.mini_pin_btn.setToolTip("固定（不可拖动）")
+        self.mini_pin_btn.setIconSize(QSize(24, 24))
+        self.mini_pin_btn.setFixedSize(30, 30)
         self.mini_pin_btn.clicked.connect(self._toggle_mini_pin)
         header.addWidget(self.mini_pin_btn, 0, Qt.AlignTop)
         self._update_mini_pin_style()
@@ -514,11 +596,9 @@ class MainWindow(QMainWindow):
             f"font-size:16px; font-weight:bold; color:{color};{deco}"
         )
         vbox.addWidget(label)
-        time_text = ""
-        if task.get("time_start"):
-            time_text = task["time_start"]
-            if task.get("time_end"):
-                time_text += f" – {task['time_end']}"
+        time_text = storage.format_time_period(
+            task.get("time_start"), task.get("time_end")
+        )
         if time_text:
             time_label = QLabel(time_text)
             time_label.setStyleSheet("color:#A8B4BF; font-size:12px;")
@@ -585,11 +665,13 @@ class MainWindow(QMainWindow):
     def _update_mini_pin_style(self) -> None:
         pinned = self._mini_pinned()
         self.mini_pin_btn.setToolTip("取消固定" if pinned else "固定（不可拖动）")
+        self.mini_pin_btn.setIcon(
+            _make_nail_icon("#3B7DBF" if pinned else "#8FB8D4")
+        )
         if pinned:
             self.mini_pin_btn.setStyleSheet(
-                f"QPushButton {{ background:{self.theme.button}; "
-                f"border:1px solid {self.theme.border}; border-radius:6px; "
-                "padding:2px 8px; font-size:15px; }"
+                "QPushButton { background:#ADD8E6; border:1px solid #7FB8D4; "
+                "border-radius:8px; }"
             )
         else:
             self.mini_pin_btn.setStyleSheet("")
@@ -654,6 +736,25 @@ class MainWindow(QMainWindow):
     def mouseReleaseEvent(self, event):
         self._drag_offset = None
         super().mouseReleaseEvent(event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_popped_initial", False) and not self._mini_mode:
+            self._popped_initial = True
+            self._pop_in(1.0)
+
+    def _pop_in(self, target_opacity: float = 1.0) -> None:
+        """窗口弹出动画：淡入 + 弹性回弹，生动俏皮。"""
+        try:
+            anim = QPropertyAnimation(self, b"windowOpacity", self)
+            anim.setDuration(280)
+            anim.setStartValue(0.1)
+            anim.setEndValue(target_opacity)
+            anim.setEasingCurve(QEasingCurve.OutBack)
+            self._pop_anim = anim
+            anim.start()
+        except Exception:
+            self.setWindowOpacity(target_opacity)
 
     @staticmethod
     def format_date(d: date) -> str:
@@ -724,11 +825,9 @@ class MainWindow(QMainWindow):
             )
         )
 
-        time_text = ""
-        if task.get("time_start"):
-            time_text = task["time_start"]
-            if task.get("time_end"):
-                time_text += f" – {task['time_end']}"
+        time_text = storage.format_time_period(
+            task.get("time_start"), task.get("time_end")
+        )
         if task.get("is_daily"):
             time_text = (time_text + "  ·  " if time_text else "") + "每天"
         if task.get("reminder_time"):
@@ -752,6 +851,16 @@ class MainWindow(QMainWindow):
         del_btn.setObjectName("smallDanger")
         del_btn.clicked.connect(lambda _, t=task: self._delete_task(t))
 
+        if self._batch_mode:
+            select_check = QCheckBox()
+            select_check.setToolTip("选择（批量编辑）")
+            select_check.blockSignals(True)
+            select_check.setChecked(task["id"] in self._batch_selected)
+            select_check.blockSignals(False)
+            select_check.toggled.connect(
+                lambda checked, t=task: self._on_batch_select(t["id"], checked)
+            )
+            lay.addWidget(select_check, 0, Qt.AlignTop)
         lay.addWidget(check)
         lay.addLayout(text_col, 1)
         lay.addWidget(pin_btn)
@@ -1239,6 +1348,101 @@ class MainWindow(QMainWindow):
         dialog = MonthPlanDialog(self, self.data, self.current_date)
         dialog.exec()
 
+    # ---------- 批量编辑 ----------
+    def toggle_batch_mode(self) -> None:
+        self._batch_mode = not self._batch_mode
+        if self._batch_mode:
+            self.batch_btn.setText("退出批量")
+            self.batch_bar.show()
+        else:
+            self.exit_batch_mode()
+        self._rebuild_list()
+
+    def exit_batch_mode(self) -> None:
+        self._batch_mode = False
+        self._batch_selected.clear()
+        self.batch_btn.setText("批量编辑")
+        self.batch_bar.hide()
+        self._rebuild_list()
+
+    def _on_batch_select(self, task_id: str, checked: bool) -> None:
+        if checked:
+            self._batch_selected.add(task_id)
+        else:
+            self._batch_selected.discard(task_id)
+        self.batch_label.setText(f"已选 {len(self._batch_selected)} 条")
+
+    def batch_modify(self) -> None:
+        if not self._batch_selected:
+            self._show_msg("批量修改", "请先勾选要修改的计划。")
+            return
+        dialog = BatchDialog(self)
+        if dialog.exec() != BatchDialog.Accepted:
+            return
+        mods = dialog.values()
+        for task in self.data["tasks"]:
+            if task.get("id") not in self._batch_selected:
+                continue
+            if mods.get("color"):
+                task["color"] = mods["color"]
+            if "period" in mods:
+                if mods["period"] == "clear":
+                    task["time_start"] = None
+                    task["time_end"] = None
+                elif mods["period"]:
+                    task["time_start"], task["time_end"] = mods["period"]
+            if "reminder" in mods:
+                if mods["reminder"] == "clear":
+                    task["reminder_mode"] = "none"
+                    task["reminder_time"] = None
+                    task["is_daily"] = False
+                elif mods["reminder"]:
+                    mode, remind_time = mods["reminder"]
+                    task["reminder_mode"] = mode
+                    task["reminder_time"] = remind_time
+                    task["is_daily"] = mode == "daily"
+        storage.save_data(self.data)
+        self._rebuild_list()
+
+    def batch_pin(self) -> None:
+        if not self._batch_selected:
+            self._show_msg("批量置顶", "请先勾选要操作的计划。")
+            return
+        tasks = [
+            t for t in self.data["tasks"] if t.get("id") in self._batch_selected
+        ]
+        all_pinned = all(bool(t.get("pinned")) for t in tasks)
+        for task in tasks:
+            task["pinned"] = not all_pinned
+            task["pinned_at"] = time.time() if not all_pinned else None
+        storage.save_data(self.data)
+        self._rebuild_list()
+
+    def batch_delete(self) -> None:
+        if not self._batch_selected:
+            self._show_msg("批量删除", "请先勾选要删除的计划。")
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle("批量删除")
+        box.setText(f"确定删除选中的 {len(self._batch_selected)} 条计划吗？")
+        box.setIcon(QMessageBox.NoIcon)
+        yes_btn = box.addButton("删除", QMessageBox.DestructiveRole)
+        box.addButton("取消", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() is not yes_btn:
+            return
+        before = len(self.data["tasks"])
+        self.data["tasks"] = [
+            t
+            for t in self.data["tasks"]
+            if t.get("id") not in self._batch_selected
+        ]
+        storage.cleanup_orphan_images(self.data)
+        storage.save_data(self.data)
+        removed = before - len(self.data["tasks"])
+        self.exit_batch_mode()
+        self._show_msg("批量删除", f"已删除 {removed} 条计划。")
+
     # ---------- 截图导出 ----------
     def export_screenshot(self) -> None:
         date_str = self.current_date.isoformat()
@@ -1305,10 +1509,11 @@ class MainWindow(QMainWindow):
 
         extra = []
         if task.get("time_start"):
-            t = task["time_start"]
-            if task.get("time_end"):
-                t += f"–{task['time_end']}"
-            extra.append(t)
+            extra.append(
+                storage.format_time_period(
+                    task.get("time_start"), task.get("time_end")
+                )
+            )
         if task.get("is_daily"):
             extra.append("每天")
         if task.get("reminder_time"):

@@ -197,6 +197,32 @@ class ReminderTestCase(unittest.TestCase):
         self.assertTrue(any("导出任务" in t for t in labels))
         self.assertFalse(widget.grab().isNull())
 
+    def test_reminder_syncs_with_time_period(self):
+        dialog = TaskDialog(None)
+        dialog.time_check.setChecked(True)  # 设置时间段 → 默认提醒
+        self.assertTrue(dialog.mode_once.isChecked())
+        self.assertEqual(dialog.reminder_time_btn.time(), dialog.start_btn.time())
+
+        dialog.start_btn.set_time("07:30")  # 改开始时间 → 提醒跟随
+        self.assertEqual(dialog.reminder_time_btn.time(), "07:30")
+
+        # 手动改提醒时间后不再自动跟随
+        dialog.reminder_time_btn.set_time("08:15")
+        dialog.reminder_time_btn.timePicked.emit("08:15")
+        dialog.start_btn.set_time("09:00")
+        self.assertEqual(dialog.reminder_time_btn.time(), "08:15")
+
+    def test_period_validation(self):
+        dialog = TaskDialog(None)
+        dialog.time_check.setChecked(True)
+        dialog.start_btn.set_time("10:00")
+        dialog.end_btn.set_time("09:00")
+        self.assertIsNotNone(dialog._period_error())
+        dialog.end_btn.set_time("10:00")
+        self.assertIsNone(dialog._period_error())
+        dialog.end_btn.set_time("11:00")
+        self.assertIsNone(dialog._period_error())
+
     def test_popup_constructs_and_closes(self):
         task = storage.new_task(
             "测试提醒",

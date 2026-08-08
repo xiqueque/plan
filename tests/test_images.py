@@ -189,6 +189,23 @@ class ImageTestCase(unittest.TestCase):
         thumb.deleted.emit(str(thumb.path))
         self.assertNotIn(names[0], window.data["day_images"][today])
 
+    def test_cleanup_orphan_images(self):
+        src = self.tmp_path / "o.png"
+        make_png(src)
+        name = storage.import_image(str(src))
+        data = storage.empty_data()
+        data["tasks"].append(
+            storage.new_task("临时", date.today().isoformat(), images=[name])
+        )
+        data["image_daily"][name] = True
+        data["image_names"][name] = "图"
+        data["tasks"] = []
+        removed = storage.cleanup_orphan_images(data)
+        self.assertEqual(removed, 1)
+        self.assertFalse(storage.image_path(name).exists())
+        self.assertNotIn(name, data["image_daily"])
+        self.assertNotIn(name, data["image_names"])
+
 
 if __name__ == "__main__":
     unittest.main()
