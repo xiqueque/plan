@@ -186,10 +186,9 @@ class MusicPlayerDialog(QDialog):
             if builtin:
                 paths = [str(builtin)]
         for p in paths:
-            item = QListWidgetItem(Path(p).name)
-            item.setToolTip(
-                f"优先级：{self._priority_map().get(p, 50)}"
-            )
+            priority = self._priority_map().get(p, 50)
+            item = QListWidgetItem(f"{Path(p).name}（{priority}级）")
+            item.setToolTip(f"优先级：{priority}")
             self.playlist.addItem(item)
         if self.playlist.count() > 0:
             self.playlist.setCurrentRow(0)
@@ -204,10 +203,12 @@ class MusicPlayerDialog(QDialog):
             paths = [str(builtin)] if builtin else []
         return paths[row] if row < len(paths) else None
 
-    def play_current(self) -> None:
+    def play_current(self, restart: bool = False) -> None:
         path = self._current_path()
         if not path or self._player is None:
             return
+        if restart:
+            self._player.stop()
         self._player.setSource(QUrl.fromLocalFile(path))
         self._player.play()
 
@@ -251,8 +252,9 @@ class MusicPlayerDialog(QDialog):
         for p in paths:
             if p not in playlist:
                 playlist.append(p)
-                item = QListWidgetItem(Path(p).name)
-                item.setToolTip(f"优先级：{self._priority_map().get(p, 50)}")
+                priority = self._priority_map().get(p, 50)
+                item = QListWidgetItem(f"{Path(p).name}（{priority}级）")
+                item.setToolTip(f"优先级：{priority}")
                 self.playlist.addItem(item)
         storage.save_data(self.data)
 
@@ -294,6 +296,7 @@ class MusicPlayerDialog(QDialog):
         row = self.playlist.currentRow()
         item = self.playlist.item(row) if row >= 0 else None
         if item is not None:
+            item.setText(f"{Path(path).name}（{value}级）")
             item.setToolTip(f"优先级：{value}")
 
     def _mode(self) -> str:
@@ -366,6 +369,12 @@ class MusicPlayerDialog(QDialog):
             nxt = self._pick_next(row)
             if nxt >= 0:
                 self.playlist.setCurrentRow(nxt)
-                self.play_current()
+                if nxt == row:
+                    # 单曲循环：回到开头重播
+                    if self._player is not None:
+                        self._player.setPosition(0)
+                        self._player.play()
+                else:
+                    self.play_current()
             elif self._player is not None:
                 self._player.stop()

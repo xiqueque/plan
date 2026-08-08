@@ -64,10 +64,18 @@ class MusicTestCase(unittest.TestCase):
             r"C:\a\song2.mp3",
             r"C:\a\song3.mp3",
         ]
+        data["music_priority"] = {
+            r"C:\a\song1.mp3": 2,
+            r"C:\a\song2.mp3": 1,
+            r"C:\a\song3.mp3": 3,
+        }
         storage.save_data(data)
         window = MainWindow()
         dialog = MusicPlayerDialog(window)
         self.assertEqual(dialog.playlist.count(), 3)
+        # 优先级数字直接显示在歌名后面
+        self.assertIn("（1级）", dialog.playlist.item(1).text())
+        self.assertIn("（2级）", dialog.playlist.item(0).text())
 
         # 单曲循环
         dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData("single"))
@@ -81,9 +89,6 @@ class MusicTestCase(unittest.TestCase):
             self.assertIn(dialog._pick_next(1), (0, 1, 2))
 
         # 自定义优先级：song2(1) → song1(2) → song3(3)
-        dialog._set_priority(r"C:\a\song2.mp3", 1)
-        dialog._set_priority(r"C:\a\song1.mp3", 2)
-        dialog._set_priority(r"C:\a\song3.mp3", 3)
         dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData("priority"))
         dialog._on_mode_changed()
         self.assertEqual(dialog._pick_next(1), 0)  # song2 之后是 song1
