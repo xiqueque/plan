@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPushButton,
     QRadioButton,
     QVBoxLayout,
@@ -29,7 +28,6 @@ from ..core.storage import (
     get_image_display_names,
     image_path,
     import_image,
-    is_valid_period,
     set_image_display_name,
 )
 from .style import CHECKBOX_QSS
@@ -222,24 +220,6 @@ class TaskDialog(QDialog):
         # 手动改过提醒时间后，不再自动跟随开始时间
         self._reminder_synced = False
 
-    def _period_error(self) -> str | None:
-        if not self.time_check.isChecked():
-            return None
-        if not is_valid_period(self.start_btn.time(), self.end_btn.time()):
-            return "结束时间不能早于开始时间。最晚可设为次日相同时刻（结束 = 开始）。"
-        return None
-
-    def accept(self) -> None:
-        error = self._period_error()
-        if error:
-            box = QMessageBox(self)
-            box.setWindowTitle("时间设置")
-            box.setText(error)
-            box.setIcon(QMessageBox.NoIcon)
-            box.addButton("好的", QMessageBox.AcceptRole)
-            box.exec()
-            return
-        super().accept()
 
     def _update_reminder_enabled(self) -> None:
         enabled = not self.mode_none.isChecked()

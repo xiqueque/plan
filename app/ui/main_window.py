@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -22,7 +23,6 @@ from PySide6.QtGui import (
     QGuiApplication,
     QIcon,
     QPainter,
-    QPainterPath,
     QPen,
     QPixmap,
 )
@@ -70,23 +70,24 @@ BASE_TASK_FONT_PX = 18
 APP_ICON = Path(__file__).resolve().parent.parent / "assets" / "app_icon.ico"
 
 
-def _make_nail_icon(color: str) -> QIcon:
-    """画一个扁平钉头 + 锥形钉身的钉子图标。"""
+def _make_pin_icon(color: str) -> QIcon:
+    """画一个图钉图标：圆头 + 针，顶部带小钮。"""
     pixmap = QPixmap(28, 28)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
+    c = QColor(color)
+    # 针
+    pen = QPen(c, 2.2)
+    pen.setCapStyle(Qt.RoundCap)
+    painter.setPen(pen)
+    painter.drawLine(QPointF(14, 18), QPointF(14, 25))
+    # 图钉大头
     painter.setPen(Qt.NoPen)
-    painter.setBrush(QColor(color))
-    painter.drawRoundedRect(QRectF(5, 2, 18, 6), 2, 2)  # 钉头
-    path = QPainterPath()
-    path.moveTo(12, 6)
-    path.lineTo(16, 6)
-    path.lineTo(14.5, 20)
-    path.lineTo(12, 26)
-    path.lineTo(9.5, 20)
-    path.closeSubpath()
-    painter.drawPath(path)  # 钉身
+    painter.setBrush(c)
+    painter.drawEllipse(QRectF(7, 5, 14, 14))
+    # 顶部小钮
+    painter.drawRoundedRect(QRectF(12, 2, 4, 5), 1.5, 1.5)
     painter.end()
     return QIcon(pixmap)
 
@@ -203,6 +204,13 @@ class MainWindow(QMainWindow):
         removed = storage.run_cleanup(self.data)
         if removed:
             storage.save_data(self.data)
+        # 打包版首次运行：自动在桌面创建快捷方式
+        if getattr(sys, "frozen", False) and not self.data["settings"].get(
+            "shortcut_created"
+        ):
+            if autostart.create_desktop_shortcut():
+                self.data["settings"]["shortcut_created"] = True
+                storage.save_data(self.data)
 
         self.current_date = date.today()
         self.keyword = ""
@@ -666,7 +674,7 @@ class MainWindow(QMainWindow):
         pinned = self._mini_pinned()
         self.mini_pin_btn.setToolTip("取消固定" if pinned else "固定（不可拖动）")
         self.mini_pin_btn.setIcon(
-            _make_nail_icon("#3B7DBF" if pinned else "#8FB8D4")
+            _make_pin_icon("#3B7DBF" if pinned else "#8FB8D4")
         )
         if pinned:
             self.mini_pin_btn.setStyleSheet(
@@ -836,8 +844,27 @@ class MainWindow(QMainWindow):
         if task.get("images"):
             time_text += ("  ·  " if time_text else "") + f"图片 {len(task['images'])}"
         if time_text:
-            time_label = QLabel(time_text)
+            time_label = QLabel()
             time_label.setObjectName("timeLabel")
+            crossing = bool(
+                task.get("time_start")
+                and task.get("time_end")
+                and task["time_end"] < task["time_start"]
+            )
+            if crossing:
+                time_label.setTextFormat(Qt.RichText)
+                period = (
+                    f"{task['time_start']} – "
+                    "<span style='color:#A8B4BF;'>次日</span>"
+                    f"{task['time_end']}"
+                )
+                base = storage.format_time_period(
+                    task.get("time_start"), task.get("time_end")
+                )
+                suffix = time_text[len(base):]
+                time_label.setText(period + suffix)
+            else:
+                time_label.setText(time_text)
             text_col.addWidget(time_label)
         text_col.addStretch(1)
 

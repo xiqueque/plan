@@ -11,17 +11,31 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from PySide6.QtCore import QLockFile  # noqa: E402
+from PySide6.QtCore import QEvent, QLockFile, QObject  # noqa: E402
 from PySide6.QtGui import QIcon  # noqa: E402
-from PySide6.QtWidgets import QApplication, QMessageBox  # noqa: E402
+from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton  # noqa: E402
 
-from app.core import storage  # noqa: E402
+from app.core import click_sound, storage  # noqa: E402
 from app.ui.main_window import MainWindow  # noqa: E402
 
 if getattr(sys, "frozen", False):
     ICON_FILE = Path(__file__).resolve().parent / "app" / "assets" / "app_icon.ico"
 else:
     ICON_FILE = Path(__file__).resolve().parent / "assets" / "app_icon.ico"
+
+
+class ClickSoundFilter(QObject):
+    """按键点击时播放提示音。"""
+
+    def eventFilter(self, obj, event):
+        if (
+            event.type() == QEvent.MouseButtonRelease
+            and isinstance(obj, QPushButton)
+            and obj.isEnabled()
+            and obj.rect().contains(event.position().toPoint())
+        ):
+            click_sound.play_click_sound()
+        return super().eventFilter(obj, event)
 
 
 def main() -> int:
@@ -35,6 +49,8 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     app.setApplicationName("每日计划")
+    app._click_filter = ClickSoundFilter()
+    app.installEventFilter(app._click_filter)
     if ICON_FILE.exists():
         app.setWindowIcon(QIcon(str(ICON_FILE)))
 

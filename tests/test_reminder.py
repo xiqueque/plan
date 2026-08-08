@@ -212,16 +212,13 @@ class ReminderTestCase(unittest.TestCase):
         dialog.start_btn.set_time("09:00")
         self.assertEqual(dialog.reminder_time_btn.time(), "08:15")
 
-    def test_period_validation(self):
+    def test_cross_midnight_period_allowed(self):
         dialog = TaskDialog(None)
         dialog.time_check.setChecked(True)
-        dialog.start_btn.set_time("10:00")
-        dialog.end_btn.set_time("09:00")
-        self.assertIsNotNone(dialog._period_error())
-        dialog.end_btn.set_time("10:00")
-        self.assertIsNone(dialog._period_error())
-        dialog.end_btn.set_time("11:00")
-        self.assertIsNone(dialog._period_error())
+        dialog.start_btn.set_time("23:00")
+        dialog.end_btn.set_time("01:00")
+        text, start, end, *_ = dialog.values()
+        self.assertEqual((start, end), ("23:00", "01:00"))
 
     def test_popup_constructs_and_closes(self):
         task = storage.new_task(

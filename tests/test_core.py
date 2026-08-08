@@ -112,17 +112,9 @@ class StorageTestCase(unittest.TestCase):
         self.assertEqual(
             storage.format_time_period("23:00", "01:00"), "23:00 – 次日01:00"
         )
-        self.assertEqual(
-            storage.format_time_period("09:00", "09:00"), "09:00 – 次日09:00"
-        )
+        self.assertEqual(storage.format_time_period("09:00", "09:00"), "09:00 – 09:00")
         self.assertEqual(storage.format_time_period("09:00", None), "09:00")
         self.assertEqual(storage.format_time_period(None, None), "")
-
-    def test_is_valid_period(self):
-        self.assertTrue(storage.is_valid_period("09:00", "10:00"))
-        self.assertTrue(storage.is_valid_period("09:00", "09:00"))
-        self.assertFalse(storage.is_valid_period("10:00", "09:00"))
-        self.assertTrue(storage.is_valid_period(None, None))
 
 
 if __name__ == "__main__":

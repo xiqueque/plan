@@ -193,21 +193,14 @@ def format_weekdays(weekdays) -> str:
 
 
 def format_time_period(time_start: str | None, time_end: str | None) -> str:
-    """时间段显示：结束不早于开始；结束等于开始视为次日相同时刻（最晚 24 小时）。"""
+    """时间段显示：结束早于开始时视为跨午夜，标为「次日」。"""
     if not time_start:
         return ""
     if not time_end:
         return time_start
-    if time_end <= time_start:
+    if time_end < time_start:
         return f"{time_start} – 次日{time_end}"
     return f"{time_start} – {time_end}"
-
-
-def is_valid_period(time_start: str | None, time_end: str | None) -> bool:
-    """结束时间不能早于开始时间；最早只允许到次日相同时刻（结束=开始）。"""
-    if not time_start or not time_end:
-        return True
-    return time_end >= time_start
 
 
 def cleanup_orphan_images(data: dict) -> int:

@@ -46,3 +46,29 @@ def disable() -> None:
             winreg.DeleteValue(key, APP_NAME)
     except FileNotFoundError:
         pass
+
+
+def create_desktop_shortcut() -> bool:
+    """在桌面创建指向当前程序的快捷方式（供首次运行的新用户使用）。"""
+    try:
+        import subprocess
+
+        exe = sys.executable
+        ps = (
+            "$ws = New-Object -ComObject WScript.Shell; "
+            "$desktop = [Environment]::GetFolderPath('Desktop'); "
+            "$lnk = $ws.CreateShortcut((Join-Path $desktop '每日计划.lnk')); "
+            f"$lnk.TargetPath = '{exe}'; "
+            f"$lnk.WorkingDirectory = '{Path(exe).parent}'; "
+            f"$lnk.IconLocation = '{exe}'; "
+            "$lnk.Save()"
+        )
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps],
+            check=False,
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+            timeout=30,
+        )
+        return True
+    except Exception:
+        return False
