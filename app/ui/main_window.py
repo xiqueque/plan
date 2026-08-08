@@ -50,6 +50,8 @@ from ..core import autostart, storage, theme
 from ..core.reminder import ReminderScheduler
 from .calendar_dialog import CalendarDialog
 from .batch_dialog import BatchDialog
+from .music_dialog import MusicPlayerDialog
+from .notes_dialog import NotesDialog
 from .reminder_popup import ReminderPopup
 from .settings_dialog import SettingsDialog
 from .style import build_main_qss
@@ -398,6 +400,16 @@ class MainWindow(QMainWindow):
         self.batch_btn.setObjectName("smallBtn")
         self.batch_btn.clicked.connect(self.toggle_batch_mode)
         bottom.addWidget(self.batch_btn)
+        self.music_btn = QPushButton("音乐")
+        self.music_btn.setObjectName("smallBtn")
+        self.music_btn.setToolTip("音乐播放器")
+        self.music_btn.clicked.connect(self.open_music)
+        bottom.addWidget(self.music_btn)
+        self.notes_btn = QPushButton("便签")
+        self.notes_btn.setObjectName("smallBtn")
+        self.notes_btn.setToolTip("随手记便签")
+        self.notes_btn.clicked.connect(self.open_notes)
+        bottom.addWidget(self.notes_btn)
         bottom.addWidget(self.settings_btn)
         bottom.addWidget(QSizeGrip(self), 0, Qt.AlignBottom | Qt.AlignRight)
         root.addLayout(bottom)
@@ -1393,6 +1405,34 @@ class MainWindow(QMainWindow):
         from .month_dialog import MonthPlanDialog
 
         dialog = MonthPlanDialog(self, self.data, self.current_date)
+        dialog.exec()
+
+    def _ensure_music_player(self):
+        """懒创建音乐播放器（关闭播放器窗口后音乐继续播放）。"""
+        if getattr(self, "_music_player", None) is None:
+            if not _HAS_QT_MULTIMEDIA:
+                return None, None
+            try:
+                from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+
+                self._music_player = QMediaPlayer(self)
+                self._music_output = QAudioOutput(self)
+                try:
+                    volume = int(self.data.get("settings", {}).get("music_volume", 50))
+                except (TypeError, ValueError):
+                    volume = 50
+                self._music_output.setVolume(max(0, min(100, volume)) / 100.0)
+                self._music_player.setAudioOutput(self._music_output)
+            except Exception:
+                return None, None
+        return self._music_player, self._music_output
+
+    def open_music(self) -> None:
+        dialog = MusicPlayerDialog(self)
+        dialog.exec()
+
+    def open_notes(self) -> None:
+        dialog = NotesDialog(self)
         dialog.exec()
 
     # ---------- 批量编辑 ----------

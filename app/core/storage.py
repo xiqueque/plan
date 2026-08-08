@@ -18,6 +18,7 @@ else:
 DATA_DIR = BASE_DIR / "data"
 DATA_FILE = DATA_DIR / "plan.json"
 IMAGES_DIR = DATA_DIR / "images"
+MUSIC_DIR = Path(__file__).resolve().parent.parent / "assets" / "music"
 
 DEFAULT_SETTINGS = {"cleanup_days": 0, "sound_volume": 12, "image_viewer": ""}
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
@@ -77,6 +78,7 @@ def empty_data() -> dict:
         "day_images": {},
         "image_names": {},
         "image_daily": {},
+        "notes": "",
     }
 
 
@@ -100,6 +102,7 @@ def load_data() -> dict:
     data.setdefault("day_images", {})
     data.setdefault("image_names", {})
     data.setdefault("image_daily", {})
+    data.setdefault("notes", "")
     settings = data["settings"]
     # 兼容旧版本：check_sound -> sound_file
     if "check_sound" in settings and "sound_file" not in settings:
@@ -107,6 +110,8 @@ def load_data() -> dict:
     settings.setdefault("sound_file", "")
     settings.setdefault("sound_volume", 12)
     settings.setdefault("image_viewer", "")
+    settings.setdefault("music_playlist", [])
+    settings.setdefault("music_volume", 50)
     # 旧数据迁移：is_daily -> reminder_mode；补全提醒字段
     for task in data["tasks"]:
         if "reminder_mode" not in task:
@@ -241,6 +246,15 @@ def import_image(src_path) -> str | None:
 
 def image_path(name: str) -> Path:
     return IMAGES_DIR / name
+
+
+def default_music() -> Path | None:
+    """返回程序内置音乐目录中的默认音频（最新添加的）。"""
+    if not MUSIC_DIR.exists():
+        return None
+    exts = {".mp3", ".wav", ".m4a", ".wma", ".ogg", ".flac", ".aac"}
+    files = sorted(f for f in MUSIC_DIR.iterdir() if f.is_file() and f.suffix.lower() in exts)
+    return files[-1] if files else None
 
 
 def delete_image_file(name: str) -> None:
