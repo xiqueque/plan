@@ -45,17 +45,49 @@ class MusicTestCase(unittest.TestCase):
         self.assertEqual(window.data["settings"]["music_volume"], 35)
         dialog.close()
 
-    def test_notes_save(self):
+    def test_notes_immediate_save(self):
         data = storage.empty_data()
         storage.save_data(data)
         window = MainWindow()
         dialog = NotesDialog(window)
         self.assertIn(window.theme.border, dialog.styleSheet())
         dialog.edit.setPlainText("记得买牛奶")
-        dialog._save()
-        self.assertEqual(window.data["notes"], "记得买牛奶")
+        self.assertEqual(window.data["notes"], "记得买牛奶")  # 即改即存
         loaded = storage.load_data()
         self.assertEqual(loaded["notes"], "记得买牛奶")
+        dialog.close()
+
+    def test_music_modes_and_priority(self):
+        data = storage.empty_data()
+        data["settings"]["music_playlist"] = [
+            r"C:\a\song1.mp3",
+            r"C:\a\song2.mp3",
+            r"C:\a\song3.mp3",
+        ]
+        storage.save_data(data)
+        window = MainWindow()
+        dialog = MusicPlayerDialog(window)
+        self.assertEqual(dialog.playlist.count(), 3)
+
+        # 单曲循环
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData("single"))
+        dialog._on_mode_changed()
+        self.assertEqual(dialog._pick_next(0), 0)
+
+        # 随机播放
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData("random"))
+        dialog._on_mode_changed()
+        for _ in range(30):
+            self.assertIn(dialog._pick_next(1), (0, 1, 2))
+
+        # 自定义优先级：song2(1) → song1(2) → song3(3)
+        dialog._set_priority(r"C:\a\song2.mp3", 1)
+        dialog._set_priority(r"C:\a\song1.mp3", 2)
+        dialog._set_priority(r"C:\a\song3.mp3", 3)
+        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData("priority"))
+        dialog._on_mode_changed()
+        self.assertEqual(dialog._pick_next(1), 0)  # song2 之后是 song1
+        self.assertEqual(dialog._pick_next(2), 1)  # song3 之后回到 song2
         dialog.close()
 
 

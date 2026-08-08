@@ -1,7 +1,6 @@
 """便签：俏皮绿色样式，随手记小事，自动保存。"""
 from __future__ import annotations
 
-from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -28,11 +27,8 @@ class NotesDialog(QDialog):
         self.edit.setText(self.data.get("notes", ""))
         layout.addWidget(self.edit, 1)
 
-        self._timer = QTimer(self)
-        self._timer.setSingleShot(True)
-        self._timer.setInterval(500)
-        self._timer.timeout.connect(self._save)
-        self.edit.textChanged.connect(self._schedule_save)
+        # 只要更改就立即自动保存
+        self.edit.textChanged.connect(self._save)
 
         bottom = QHBoxLayout()
         hint = QPushButton("✨ 自动保存")
@@ -46,9 +42,6 @@ class NotesDialog(QDialog):
         bottom.addWidget(save_btn)
         bottom.addWidget(close_btn)
         layout.addLayout(bottom)
-
-    def _schedule_save(self) -> None:
-        self._timer.start()
 
     def _save(self) -> None:
         self.data["notes"] = self.edit.toPlainText()

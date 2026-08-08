@@ -384,19 +384,19 @@ class MainWindow(QMainWindow):
         self.add_btn = QPushButton("＋ 添加计划")
         self.add_btn.setObjectName("primary")
         self.add_btn.clicked.connect(self.add_task)
-        self.screenshot_btn = QPushButton("📷 截图")
+        self.screenshot_btn = QPushButton("截图")
         self.screenshot_btn.setToolTip("生成今天的计划截图，保存为图片发送到手机")
         self.screenshot_btn.clicked.connect(self.export_screenshot)
         self.settings_btn = QPushButton("⚙ 设置")
         self.settings_btn.clicked.connect(self.open_settings)
         bottom.addWidget(self.add_btn, 1)
         bottom.addWidget(self.screenshot_btn)
-        self.month_btn = QPushButton("🗓 月计划")
+        self.month_btn = QPushButton("月计划")
         self.month_btn.setObjectName("smallBtn")
         self.month_btn.setToolTip("查看月度计划")
         self.month_btn.clicked.connect(self.open_month_plan)
         bottom.addWidget(self.month_btn)
-        self.batch_btn = QPushButton("☑ 批量")
+        self.batch_btn = QPushButton("批量编辑")
         self.batch_btn.setObjectName("smallBtn")
         self.batch_btn.clicked.connect(self.toggle_batch_mode)
         bottom.addWidget(self.batch_btn)
@@ -1454,7 +1454,7 @@ class MainWindow(QMainWindow):
     def toggle_batch_mode(self) -> None:
         self._batch_mode = not self._batch_mode
         if self._batch_mode:
-            self.batch_btn.setText("✖ 退出")
+            self.batch_btn.setText("退出批量")
             self.batch_bar.show()
         else:
             self.exit_batch_mode()
@@ -1463,7 +1463,7 @@ class MainWindow(QMainWindow):
     def exit_batch_mode(self) -> None:
         self._batch_mode = False
         self._batch_selected.clear()
-        self.batch_btn.setText("☑ 批量")
+        self.batch_btn.setText("批量编辑")
         self.batch_bar.hide()
         self._rebuild_list()
 

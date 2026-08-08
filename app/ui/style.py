@@ -88,6 +88,9 @@ QPushButton#primary {
     background: $border;
     color: white;
     font-weight: bold;
+    padding: 10px 22px;
+    font-size: 16px;
+    min-height: 34px;
 }
 QPushButton#primary:hover { background: $button_pressed; }
 QPushButton#smallBtn {

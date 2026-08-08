@@ -1,16 +1,21 @@
 """音乐播放器：俏皮暖色样式、大字体曲名、可拖动进度条。"""
 from __future__ import annotations
 
+import random
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QListWidget,
+    QListWidgetItem,
+    QMenu,
     QProgressBar,
     QPushButton,
     QSlider,
@@ -84,6 +89,8 @@ class MusicPlayerDialog(QDialog):
         layout.addLayout(progress_row)
 
         self.playlist = QListWidget()
+        self.playlist.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.playlist.customContextMenuRequested.connect(self._context_menu)
         layout.addWidget(self.playlist, 1)
 
         controls = QHBoxLayout()
@@ -106,6 +113,21 @@ class MusicPlayerDialog(QDialog):
         ):
             controls.addWidget(b)
         layout.addLayout(controls)
+
+        mode_row = QHBoxLayout()
+        mode_row.addWidget(QLabel("播放模式："))
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItem("顺序播放", "order")
+        self.mode_combo.addItem("单曲循环", "single")
+        self.mode_combo.addItem("随机播放", "random")
+        self.mode_combo.addItem("自定义优先级", "priority")
+        mode = self.data.get("settings", {}).get("music_mode", "order")
+        idx = self.mode_combo.findData(mode)
+        if idx >= 0:
+            self.mode_combo.setCurrentIndex(idx)
+        self.mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+        mode_row.addWidget(self.mode_combo, 1)
+        layout.addLayout(mode_row)
 
         manage = QHBoxLayout()
         self.add_btn = QPushButton("＋ 添加音频…")
@@ -164,7 +186,11 @@ class MusicPlayerDialog(QDialog):
             if builtin:
                 paths = [str(builtin)]
         for p in paths:
-            self.playlist.addItem(Path(p).name)
+            item = QListWidgetItem(Path(p).name)
+            item.setToolTip(
+                f"优先级：{self._priority_map().get(p, 50)}"
+            )
+            self.playlist.addItem(item)
         if self.playlist.count() > 0:
             self.playlist.setCurrentRow(0)
 
@@ -225,7 +251,9 @@ class MusicPlayerDialog(QDialog):
         for p in paths:
             if p not in playlist:
                 playlist.append(p)
-                self.playlist.addItem(Path(p).name)
+                item = QListWidgetItem(Path(p).name)
+                item.setToolTip(f"优先级：{self._priority_map().get(p, 50)}")
+                self.playlist.addItem(item)
         storage.save_data(self.data)
 
     def remove_selected(self) -> None:
@@ -237,6 +265,76 @@ class MusicPlayerDialog(QDialog):
             del playlist[row]
         self.playlist.takeItem(row)
         storage.save_data(self.data)
+
+    def _context_menu(self, pos) -> None:
+        item = self.playlist.itemAt(pos)
+        if item is None:
+            return
+        menu = QMenu(self)
+        act_priority = menu.addAction("设置优先级（1-100，数字小先播）")
+        chosen = menu.exec(self.playlist.mapToGlobal(pos))
+        if chosen is act_priority:
+            path = self._current_path()
+            if path is None:
+                return
+            current = self._priority_map().get(path, 50)
+            value, ok = QInputDialog.getInt(
+                self, "设置优先级", "优先级（1-100，数字小先播）：",
+                current, 1, 100,
+            )
+            if ok:
+                self._set_priority(path, value)
+
+    def _priority_map(self) -> dict:
+        return self.data.setdefault("music_priority", {})
+
+    def _set_priority(self, path: str, value: int) -> None:
+        self._priority_map()[path] = value
+        storage.save_data(self.data)
+        row = self.playlist.currentRow()
+        item = self.playlist.item(row) if row >= 0 else None
+        if item is not None:
+            item.setToolTip(f"优先级：{value}")
+
+    def _mode(self) -> str:
+        return self.data.get("settings", {}).get("music_mode", "order")
+
+    def _on_mode_changed(self, _index=None) -> None:
+        self.data.setdefault("settings", {})["music_mode"] = (
+            self.mode_combo.currentData() or "order"
+        )
+        storage.save_data(self.data)
+
+    def _paths(self) -> list:
+        paths = list(self.data.get("settings", {}).get("music_playlist", []))
+        if not paths:
+            builtin = storage.default_music()
+            paths = [str(builtin)] if builtin else []
+        return paths
+
+    def _pick_next(self, current: int) -> int:
+        """按播放模式选择下一首；返回 -1 表示停止。"""
+        count = self.playlist.count()
+        if count == 0:
+            return -1
+        mode = self._mode()
+        if mode == "single":
+            return current
+        if mode == "random":
+            return random.randrange(count)
+        if mode == "priority":
+            paths = self._paths()
+            order = sorted(
+                range(len(paths)),
+                key=lambda i: self._priority_map().get(paths[i], 50),
+            )
+            if current in order:
+                idx = order.index(current)
+            else:
+                idx = 0
+            return order[(idx + 1) % len(order)]
+        nxt = current + 1
+        return nxt if nxt < count else -1
 
     def _on_volume(self, value: int) -> None:
         self.volume_label.setText(f"{value}%")
@@ -264,4 +362,10 @@ class MusicPlayerDialog(QDialog):
 
     def _on_media_status(self, status) -> None:
         if status == QMediaPlayer.EndOfMedia:
-            self.next_track()
+            row = self.playlist.currentRow()
+            nxt = self._pick_next(row)
+            if nxt >= 0:
+                self.playlist.setCurrentRow(nxt)
+                self.play_current()
+            elif self._player is not None:
+                self._player.stop()
