@@ -1112,12 +1112,11 @@ class MainWindow(QMainWindow):
         return path
 
     def _warm_up_audio(self) -> None:
-        """启动时预热播放器，避免第一次点击勾选框时音效延迟。"""
+        """启动时创建播放器（不加载音源），避免首次播放延迟且不占用额外资源。"""
         if not _HAS_QT_MULTIMEDIA:
             return
         try:
             self._ensure_player()
-            self._player.setSource(QUrl.fromLocalFile(self._resolve_sound_path()))
         except Exception:
             pass
 

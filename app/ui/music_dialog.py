@@ -74,6 +74,7 @@ class MusicPlayerDialog(QDialog):
         self._loop_timer = QTimer(self)
         self._loop_timer.setInterval(150)
         self._loop_timer.timeout.connect(self._check_single_loop)
+        self._last_label_ms = 0
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
@@ -310,6 +311,14 @@ class MusicPlayerDialog(QDialog):
             self.mode_combo.currentData() or "order"
         )
         storage.save_data(self.data)
+        # 只有单曲循环才需要轮询计时器，其余模式停止轮询省资源
+        if self._player is not None and (
+            self._player.playbackState() == QMediaPlayer.PlayingState
+        ):
+            if self._mode() == "single":
+                self._loop_timer.start()
+            else:
+                self._loop_timer.stop()
 
     def _paths(self) -> list:
         paths = list(self.data.get("settings", {}).get("music_playlist", []))
@@ -352,8 +361,11 @@ class MusicPlayerDialog(QDialog):
 
     def _on_position(self, pos: int) -> None:
         self.seek_bar.setValue(pos)
-        duration = self.seek_bar.maximum()
-        self.time_label.setText(f"{_fmt(pos)} / {_fmt(duration)}")
+        # 时间标签节流：最多每 500ms 更新一次
+        if pos - self._last_label_ms >= 500:
+            self._last_label_ms = pos
+            duration = self.seek_bar.maximum()
+            self.time_label.setText(f"{_fmt(pos)} / {_fmt(duration)}")
 
     def _on_duration(self, duration: int) -> None:
         self.seek_bar.setRange(0, duration)
@@ -363,7 +375,11 @@ class MusicPlayerDialog(QDialog):
             item = self.playlist.currentItem()
             name = item.text() if item else ""
             self.now_label.setText(f"♪ 正在播放：{name}")
-            self._loop_timer.start()
+            # 仅单曲循环需要轮询检测重播
+            if self._mode() == "single":
+                self._loop_timer.start()
+            else:
+                self._loop_timer.stop()
         elif state == QMediaPlayer.StoppedState:
             self.now_label.setText("🎵 未播放")
             self._loop_timer.stop()

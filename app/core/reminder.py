@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, QTimer, Signal
 
 from .storage import is_reminded, mark_reminded
 
-CHECK_INTERVAL_MS = 20000
+CHECK_INTERVAL_MS = 30000
 
 
 class ReminderScheduler(QObject):
