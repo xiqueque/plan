@@ -21,7 +21,7 @@ class NotesDialog(QDialog):
 
         layout = QVBoxLayout(self)
         self.edit = QTextEdit()
-        self.edit.setPlaceholderText("📝 记下一些小事…")
+        self.edit.setPlaceholderText("记下一些小事…")
         self.edit.setText(self.data.get("notes", ""))
         layout.addWidget(self.edit, 1)
 

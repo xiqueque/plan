@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import (
     QComboBox,
@@ -71,6 +71,9 @@ class MusicPlayerDialog(QDialog):
         self.mw = parent
         self.data = self.mw.data
         self.setStyleSheet(build_music_qss(self.mw.theme))
+        self._loop_timer = QTimer(self)
+        self._loop_timer.setInterval(150)
+        self._loop_timer.timeout.connect(self._check_single_loop)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
@@ -360,8 +363,20 @@ class MusicPlayerDialog(QDialog):
             item = self.playlist.currentItem()
             name = item.text() if item else ""
             self.now_label.setText(f"♪ 正在播放：{name}")
+            self._loop_timer.start()
         elif state == QMediaPlayer.StoppedState:
             self.now_label.setText("🎵 未播放")
+            self._loop_timer.stop()
+
+    def _check_single_loop(self) -> None:
+        """单曲循环：检测到快播完时回到开头重播（不依赖 EndOfMedia，更可靠）。"""
+        if self._player is None or self._mode() != "single":
+            return
+        duration = self._player.duration()
+        position = self._player.position()
+        if duration > 0 and position > 0 and position >= duration - 120:
+            self._player.setPosition(0)
+            self._player.play()
 
     def _on_media_status(self, status) -> None:
         if status == QMediaPlayer.EndOfMedia:
@@ -369,12 +384,12 @@ class MusicPlayerDialog(QDialog):
             nxt = self._pick_next(row)
             if nxt >= 0:
                 self.playlist.setCurrentRow(nxt)
-                if nxt == row:
-                    # 单曲循环：回到开头重播
-                    if self._player is not None:
-                        self._player.setPosition(0)
-                        self._player.play()
-                else:
-                    self.play_current()
+                path = self._current_path()
+                if self._player is not None and path:
+                    # 先清除再重设音源，确保能重新开始播放（单曲循环可靠重播）
+                    self._player.stop()
+                    self._player.setSource(QUrl())
+                    self._player.setSource(QUrl.fromLocalFile(path))
+                    self._player.play()
             elif self._player is not None:
                 self._player.stop()
