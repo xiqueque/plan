@@ -71,25 +71,18 @@ class MusicTestCase(unittest.TestCase):
         storage.save_data(data)
         self.assertAlmostEqual(click_sound._current_volume(), 0.3, places=2)
 
-    def test_music_modes_and_priority(self):
+    def test_music_modes(self):
         data = storage.empty_data()
         data["settings"]["music_playlist"] = [
             r"C:\a\song1.mp3",
             r"C:\a\song2.mp3",
             r"C:\a\song3.mp3",
         ]
-        data["music_priority"] = {
-            r"C:\a\song1.mp3": 2,
-            r"C:\a\song2.mp3": 1,
-            r"C:\a\song3.mp3": 3,
-        }
         storage.save_data(data)
         window = MainWindow()
         dialog = MusicPlayerDialog(window)
         self.assertEqual(dialog.playlist.count(), 3)
-        # 优先级数字直接显示在歌名后面
-        self.assertIn("（1级）", dialog.playlist.item(1).text())
-        self.assertIn("（2级）", dialog.playlist.item(0).text())
+        self.assertEqual(dialog.mode_combo.count(), 3)  # 已取消优先级
 
         # 单曲循环
         dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData("single"))
@@ -99,14 +92,44 @@ class MusicTestCase(unittest.TestCase):
         # 随机播放
         dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData("random"))
         dialog._on_mode_changed()
+        self.assertEqual(dialog.toggle_btn.text(), "🔀 随机播放")
         for _ in range(30):
             self.assertIn(dialog._pick_next(1), (0, 1, 2))
+        dialog.close()
 
-        # 自定义优先级：song2(1) → song1(2) → song3(3)
-        dialog.mode_combo.setCurrentIndex(dialog.mode_combo.findData("priority"))
-        dialog._on_mode_changed()
-        self.assertEqual(dialog._pick_next(1), 0)  # song2 之后是 song1
-        self.assertEqual(dialog._pick_next(2), 1)  # song3 之后回到 song2
+    def test_music_drag_reorder_syncs(self):
+        data = storage.empty_data()
+        data["settings"]["music_playlist"] = [
+            r"C:\a\song1.mp3",
+            r"C:\a\song2.mp3",
+            r"C:\a\song3.mp3",
+        ]
+        storage.save_data(data)
+        window = MainWindow()
+        dialog = MusicPlayerDialog(window)
+        item = dialog.playlist.takeItem(0)
+        dialog.playlist.insertItem(1, item)
+        dialog._sync_order()
+        self.assertEqual(
+            window.data["settings"]["music_playlist"],
+            [r"C:\a\song2.mp3", r"C:\a\song1.mp3", r"C:\a\song3.mp3"],
+        )
+        dialog.close()
+
+    def test_builtin_kept_when_adding(self):
+        data = storage.empty_data()  # 空播放列表 → 默认使用内置音乐
+        storage.save_data(data)
+        window = MainWindow()
+        dialog = MusicPlayerDialog(window)
+        self.assertEqual(dialog.playlist.count(), 1)
+        builtin = storage.default_music()
+        dialog._ensure_builtin()
+        new_path = r"C:\a\new.mp3"
+        playlist = window.data["settings"]["music_playlist"]
+        playlist.append(new_path)
+        dialog._append_item(new_path)
+        self.assertIn(str(builtin), playlist)  # 内置音乐不丢失
+        self.assertIn(new_path, playlist)
         dialog.close()
 
 

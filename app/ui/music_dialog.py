@@ -1,4 +1,4 @@
-"""音乐播放器：俏皮暖色样式、大字体曲名、可拖动进度条。"""
+"""音乐播放器：俏皮暖色样式、大字体曲名、可拖动进度条、拖拽排序、随机模式。"""
 from __future__ import annotations
 
 import random
@@ -7,15 +7,14 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer, QUrl, Signal
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QComboBox,
     QDialog,
     QFileDialog,
     QHBoxLayout,
-    QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QMenu,
     QProgressBar,
     QPushButton,
     QSlider,
@@ -26,6 +25,7 @@ from ..core import storage
 from .style import build_music_qss
 
 AUDIO_FILTER = "音频文件 (*.mp3 *.wav *.m4a *.wma *.ogg *.flac *.aac)"
+PATH_ROLE = Qt.UserRole
 
 
 class SeekBar(QProgressBar):
@@ -93,8 +93,10 @@ class MusicPlayerDialog(QDialog):
         layout.addLayout(progress_row)
 
         self.playlist = QListWidget()
-        self.playlist.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.playlist.customContextMenuRequested.connect(self._context_menu)
+        self.playlist.setDragDropMode(QAbstractItemView.InternalMove)
+        self.playlist.setDefaultDropAction(Qt.MoveAction)
+        self.playlist.itemDoubleClicked.connect(lambda _item: self.play_current())
+        self.playlist.model().rowsMoved.connect(self._sync_order)
         layout.addWidget(self.playlist, 1)
 
         controls = QHBoxLayout()
@@ -106,12 +108,7 @@ class MusicPlayerDialog(QDialog):
         self.stop_btn.clicked.connect(self.stop)
         self.prev_btn.clicked.connect(self.prev_track)
         self.next_btn.clicked.connect(self.next_track)
-        for b in (
-            self.toggle_btn,
-            self.stop_btn,
-            self.prev_btn,
-            self.next_btn,
-        ):
+        for b in (self.toggle_btn, self.stop_btn, self.prev_btn, self.next_btn):
             controls.addWidget(b)
         layout.addLayout(controls)
 
@@ -121,7 +118,6 @@ class MusicPlayerDialog(QDialog):
         self.mode_combo.addItem("顺序播放", "order")
         self.mode_combo.addItem("单曲循环", "single")
         self.mode_combo.addItem("随机播放", "random")
-        self.mode_combo.addItem("自定义优先级", "priority")
         mode = self.data.get("settings", {}).get("music_mode", "order")
         idx = self.mode_combo.findData(mode)
         if idx >= 0:
@@ -170,39 +166,69 @@ class MusicPlayerDialog(QDialog):
                     f"{_fmt(player.position())} / {_fmt(duration)}"
                 )
         else:
-            for b in (
-                self.toggle_btn,
-                self.stop_btn,
-                self.prev_btn,
-                self.next_btn,
-            ):
+            for b in (self.toggle_btn, self.stop_btn, self.prev_btn, self.next_btn):
                 b.setEnabled(False)
+        self._update_toggle_text()
         self._on_volume(self.volume_slider.value())
 
+    # ---------- 播放列表 ----------
     def _init_playlist(self) -> None:
+        paths = self._paths()
+        for p in paths:
+            self._append_item(p)
+        if self.playlist.count() > 0:
+            self.playlist.setCurrentRow(0)
+
+    def _append_item(self, path: str) -> QListWidgetItem:
+        item = QListWidgetItem(Path(path).name)
+        item.setData(PATH_ROLE, path)
+        self.playlist.addItem(item)
+        return item
+
+    def _paths(self) -> list:
         paths = list(self.data.get("settings", {}).get("music_playlist", []))
         if not paths:
             builtin = storage.default_music()
-            if builtin:
-                paths = [str(builtin)]
-        for p in paths:
-            priority = self._priority_map().get(p, 50)
-            item = QListWidgetItem(f"{Path(p).name}（{priority}级）")
-            item.setToolTip(f"优先级：{priority}")
-            self.playlist.addItem(item)
-        if self.playlist.count() > 0:
-            self.playlist.setCurrentRow(0)
+            paths = [str(builtin)] if builtin else []
+        return paths
 
     def _current_path(self):
         row = self.playlist.currentRow()
         if row < 0:
             return None
-        paths = list(self.data.get("settings", {}).get("music_playlist", []))
-        if not paths:
-            builtin = storage.default_music()
-            paths = [str(builtin)] if builtin else []
-        return paths[row] if row < len(paths) else None
+        item = self.playlist.item(row)
+        if item is None:
+            return None
+        path = item.data(PATH_ROLE)
+        return path if path else None
 
+    def _ensure_builtin(self) -> str | None:
+        """添加新音乐时保证内置音乐不丢失。"""
+        playlist = self.data.setdefault("settings", {}).setdefault(
+            "music_playlist", []
+        )
+        builtin = storage.default_music()
+        if builtin and str(builtin) not in playlist:
+            playlist.insert(0, str(builtin))
+            item = QListWidgetItem(builtin.name)
+            item.setData(PATH_ROLE, str(builtin))
+            self.playlist.insertItem(0, item)
+        return str(builtin) if builtin else None
+
+    def _sync_order(self, *args) -> None:
+        """拖拽排序后，把新顺序同步到设置并保存。"""
+        ordered = []
+        for i in range(self.playlist.count()):
+            item = self.playlist.item(i)
+            if item is not None:
+                path = item.data(PATH_ROLE)
+                if path:
+                    ordered.append(path)
+        if ordered:
+            self.data.setdefault("settings", {})["music_playlist"] = ordered
+            storage.save_data(self.data)
+
+    # ---------- 播放控制 ----------
     def play_current(self, restart: bool = False) -> None:
         path = self._current_path()
         if not path or self._player is None:
@@ -214,11 +240,15 @@ class MusicPlayerDialog(QDialog):
         self._player.play()
 
     def toggle_play(self) -> None:
-        """播放/暂停切换：播放中按一下暂停，暂停或停止时按一下播放。"""
+        """播放/暂停切换；随机模式下从随机一首开始。"""
         if self._player is None:
             return
         if self._player.playbackState() == QMediaPlayer.PlayingState:
             self._player.pause()
+            return
+        if self._mode() == "random" and self.playlist.count() > 0:
+            self.playlist.setCurrentRow(random.randrange(self.playlist.count()))
+            self.play_current()
             return
         if self._player.source().isEmpty():
             self.play_current()
@@ -234,6 +264,12 @@ class MusicPlayerDialog(QDialog):
         self._step(-1)
 
     def next_track(self) -> None:
+        if self._mode() == "random":
+            nxt = self._pick_next(self.playlist.currentRow())
+            if nxt >= 0:
+                self.playlist.setCurrentRow(nxt)
+                self.play_current()
+            return
         self._step(1)
 
     def _step(self, delta: int) -> None:
@@ -246,88 +282,8 @@ class MusicPlayerDialog(QDialog):
         self.playlist.setCurrentRow((row + delta) % count)
         self.play_current()
 
-    def add_files(self) -> None:
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "选择音频", str(Path.home()), AUDIO_FILTER
-        )
-        if not paths:
-            return
-        playlist = self.data.setdefault("settings", {}).setdefault(
-            "music_playlist", []
-        )
-        for p in paths:
-            if p not in playlist:
-                playlist.append(p)
-                priority = self._priority_map().get(p, 50)
-                item = QListWidgetItem(f"{Path(p).name}（{priority}级）")
-                item.setToolTip(f"优先级：{priority}")
-                self.playlist.addItem(item)
-        storage.save_data(self.data)
-
-    def remove_selected(self) -> None:
-        row = self.playlist.currentRow()
-        if row < 0:
-            return
-        playlist = self.data.get("settings", {}).get("music_playlist", [])
-        if row < len(playlist):
-            del playlist[row]
-        self.playlist.takeItem(row)
-        storage.save_data(self.data)
-
-    def _context_menu(self, pos) -> None:
-        item = self.playlist.itemAt(pos)
-        if item is None:
-            return
-        menu = QMenu(self)
-        act_priority = menu.addAction("设置优先级（1-100，数字小先播）")
-        chosen = menu.exec(self.playlist.mapToGlobal(pos))
-        if chosen is act_priority:
-            path = self._current_path()
-            if path is None:
-                return
-            current = self._priority_map().get(path, 50)
-            value, ok = QInputDialog.getInt(
-                self, "设置优先级", "优先级（1-100，数字小先播）：",
-                current, 1, 100,
-            )
-            if ok:
-                self._set_priority(path, value)
-
-    def _priority_map(self) -> dict:
-        return self.data.setdefault("music_priority", {})
-
-    def _set_priority(self, path: str, value: int) -> None:
-        self._priority_map()[path] = value
-        storage.save_data(self.data)
-        row = self.playlist.currentRow()
-        item = self.playlist.item(row) if row >= 0 else None
-        if item is not None:
-            item.setText(f"{Path(path).name}（{value}级）")
-            item.setToolTip(f"优先级：{value}")
-
     def _mode(self) -> str:
         return self.data.get("settings", {}).get("music_mode", "order")
-
-    def _on_mode_changed(self, _index=None) -> None:
-        self.data.setdefault("settings", {})["music_mode"] = (
-            self.mode_combo.currentData() or "order"
-        )
-        storage.save_data(self.data)
-        # 只有单曲循环才需要轮询计时器，其余模式停止轮询省资源
-        if self._player is not None and (
-            self._player.playbackState() == QMediaPlayer.PlayingState
-        ):
-            if self._mode() == "single":
-                self._loop_timer.start()
-            else:
-                self._loop_timer.stop()
-
-    def _paths(self) -> list:
-        paths = list(self.data.get("settings", {}).get("music_playlist", []))
-        if not paths:
-            builtin = storage.default_music()
-            paths = [str(builtin)] if builtin else []
-        return paths
 
     def _pick_next(self, current: int) -> int:
         """按播放模式选择下一首；返回 -1 表示停止。"""
@@ -339,20 +295,40 @@ class MusicPlayerDialog(QDialog):
             return current
         if mode == "random":
             return random.randrange(count)
-        if mode == "priority":
-            paths = self._paths()
-            order = sorted(
-                range(len(paths)),
-                key=lambda i: self._priority_map().get(paths[i], 50),
-            )
-            if current in order:
-                idx = order.index(current)
-            else:
-                idx = 0
-            return order[(idx + 1) % len(order)]
         nxt = current + 1
         return nxt if nxt < count else -1
 
+    # ---------- 添加 / 移除 ----------
+    def add_files(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "选择音频", str(Path.home()), AUDIO_FILTER
+        )
+        if not paths:
+            return
+        self._ensure_builtin()  # 内置音乐保留
+        playlist = self.data.setdefault("settings", {}).setdefault(
+            "music_playlist", []
+        )
+        for p in paths:
+            if p not in playlist:
+                playlist.append(p)
+                self._append_item(p)
+        storage.save_data(self.data)
+
+    def remove_selected(self) -> None:
+        row = self.playlist.currentRow()
+        if row < 0:
+            return
+        item = self.playlist.item(row)
+        path = item.data(PATH_ROLE) if item is not None else None
+        self.playlist.takeItem(row)
+        if path:
+            playlist = self.data.get("settings", {}).get("music_playlist", [])
+            if path in playlist:
+                playlist.remove(path)
+        storage.save_data(self.data)
+
+    # ---------- 音量 ----------
     def _on_volume(self, value: int) -> None:
         self.volume_label.setText(f"{value}%")
         self.data.setdefault("settings", {})["music_volume"] = value
@@ -361,9 +337,33 @@ class MusicPlayerDialog(QDialog):
         if output is not None:
             output.setVolume(value / 100.0)
 
+    # ---------- 状态与进度 ----------
+    def _on_mode_changed(self, _index=None) -> None:
+        self.data.setdefault("settings", {})["music_mode"] = (
+            self.mode_combo.currentData() or "order"
+        )
+        storage.save_data(self.data)
+        self._update_toggle_text()
+        if self._player is not None and (
+            self._player.playbackState() == QMediaPlayer.PlayingState
+        ):
+            if self._mode() == "single":
+                self._loop_timer.start()
+            else:
+                self._loop_timer.stop()
+
+    def _update_toggle_text(self) -> None:
+        if self._player is not None and (
+            self._player.playbackState() == QMediaPlayer.PlayingState
+        ):
+            self.toggle_btn.setText("⏸ 暂停")
+        elif self._mode() == "random":
+            self.toggle_btn.setText("🔀 随机播放")
+        else:
+            self.toggle_btn.setText("▶ 播放")
+
     def _on_position(self, pos: int) -> None:
         self.seek_bar.setValue(pos)
-        # 时间标签节流：最多每 500ms 更新一次；重播/切歌回退时立即更新
         if pos - self._last_label_ms >= 500 or pos < self._last_label_ms:
             self._last_label_ms = pos
             duration = self.seek_bar.maximum()
@@ -387,20 +387,18 @@ class MusicPlayerDialog(QDialog):
             name = item.text() if item else ""
             self.now_label.setText(f"♪ 正在播放：{name}")
             self.toggle_btn.setText("⏸ 暂停")
-            # 仅单曲循环需要轮询检测重播
             if self._mode() == "single":
                 self._loop_timer.start()
             else:
                 self._loop_timer.stop()
         elif state == QMediaPlayer.PausedState:
-            self.toggle_btn.setText("▶ 播放")
+            self._update_toggle_text()
         elif state == QMediaPlayer.StoppedState:
             self.now_label.setText("🎵 未播放")
-            self.toggle_btn.setText("▶ 播放")
+            self._update_toggle_text()
             self._loop_timer.stop()
 
     def _check_single_loop(self) -> None:
-        """单曲循环：检测到快播完时回到开头重播（不依赖 EndOfMedia，更可靠）。"""
         if self._player is None or self._mode() != "single":
             return
         duration = self._player.duration()
@@ -417,7 +415,6 @@ class MusicPlayerDialog(QDialog):
                 self.playlist.setCurrentRow(nxt)
                 path = self._current_path()
                 if self._player is not None and path:
-                    # 先清除再重设音源，确保能重新开始播放（单曲循环可靠重播）
                     self._player.stop()
                     self._player.setSource(QUrl())
                     self._player.setSource(QUrl.fromLocalFile(path))
