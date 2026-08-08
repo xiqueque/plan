@@ -3,7 +3,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QUrl
+
 CLICK_SOUND = Path(r"C:\Users\Junhong\Music\8月8日.mp3")
+
+_player = None
+_audio = None
 
 
 def play_click_sound() -> None:
@@ -21,7 +26,23 @@ def play_click_sound() -> None:
             return
     except Exception:
         pass
-    # 其他格式（mp3）用系统 MCI 播放
+    # mp3 等格式：Qt 多媒体播放（可靠、可控音量）
+    global _player, _audio
+    try:
+        from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+
+        if _player is None:
+            _player = QMediaPlayer()
+            _audio = QAudioOutput()
+            _audio.setVolume(0.55)
+            _player.setAudioOutput(_audio)
+        _player.stop()
+        _player.setSource(QUrl.fromLocalFile(str(CLICK_SOUND)))
+        _player.play()
+        return
+    except Exception:
+        pass
+    # 兜底：系统 MCI 播放
     try:
         import ctypes
 

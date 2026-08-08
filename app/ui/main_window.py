@@ -68,6 +68,8 @@ SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "check.wav"
 DEFAULT_SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "8月7日_裁剪.wav"
 BASE_TASK_FONT_PX = 18
 APP_ICON = Path(__file__).resolve().parent.parent / "assets" / "app_icon.ico"
+DOWNLOAD_IMAGE_FOLDER = Path(r"D:\Downloads")
+DOWNLOAD_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".ico"}
 
 
 def _make_pin_icon(color: str) -> QIcon:
@@ -90,6 +92,20 @@ def _make_pin_icon(color: str) -> QIcon:
     painter.drawRoundedRect(QRectF(12, 2, 4, 5), 1.5, 1.5)
     painter.end()
     return QIcon(pixmap)
+
+
+def _latest_download_image() -> Path | None:
+    """返回 D:/Downloads 中最新的图片文件。"""
+    if not DOWNLOAD_IMAGE_FOLDER.exists():
+        return None
+    files = [
+        f
+        for f in DOWNLOAD_IMAGE_FOLDER.iterdir()
+        if f.is_file() and f.suffix.lower() in DOWNLOAD_IMAGE_EXTS
+    ]
+    if not files:
+        return None
+    return max(files, key=lambda f: f.stat().st_mtime)
 
 
 class BigCheckBox(QCheckBox):
@@ -673,9 +689,13 @@ class MainWindow(QMainWindow):
     def _update_mini_pin_style(self) -> None:
         pinned = self._mini_pinned()
         self.mini_pin_btn.setToolTip("取消固定" if pinned else "固定（不可拖动）")
-        self.mini_pin_btn.setIcon(
-            _make_pin_icon("#3B7DBF" if pinned else "#8FB8D4")
-        )
+        latest = _latest_download_image()
+        if latest is not None:
+            self.mini_pin_btn.setIcon(QIcon(str(latest)))
+        else:
+            self.mini_pin_btn.setIcon(
+                _make_pin_icon("#3B7DBF" if pinned else "#8FB8D4")
+            )
         if pinned:
             self.mini_pin_btn.setStyleSheet(
                 "QPushButton { background:#ADD8E6; border:1px solid #7FB8D4; "
