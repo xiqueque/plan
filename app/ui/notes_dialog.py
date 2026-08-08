@@ -11,32 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import storage
-
-NOTES_QSS = """
-QDialog {
-    background: #F2FFF6;
-    font-family: "幼圆", "Microsoft YaHei";
-    font-size: 15px;
-    color: #2E4A38;
-}
-QTextEdit {
-    background: white;
-    border: 2px solid #9CD6AE;
-    border-radius: 14px;
-    font-size: 16px;
-    padding: 10px;
-}
-QPushButton {
-    background: #C8F0D6;
-    border: 2px solid #7FC99B;
-    border-radius: 12px;
-    padding: 9px 16px;
-    font-size: 15px;
-    font-weight: bold;
-}
-QPushButton:hover { background: #AEE4C4; }
-QPushButton:pressed { background: #7FC99B; }
-"""
+from .style import build_notes_qss
 
 
 class NotesDialog(QDialog):
@@ -44,8 +19,8 @@ class NotesDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("便签")
         self.resize(500, 440)
-        self.setStyleSheet(NOTES_QSS)
         self.data = parent.data
+        self.setStyleSheet(build_notes_qss(parent.theme))
 
         layout = QVBoxLayout(self)
         self.edit = QTextEdit()

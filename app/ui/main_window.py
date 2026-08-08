@@ -530,47 +530,50 @@ class MainWindow(QMainWindow):
 
         header = QHBoxLayout()
         date_col = QVBoxLayout()
-        date_col.setSpacing(0)
+        date_col.setSpacing(2)
+        top_row = QHBoxLayout()
+        top_row.setSpacing(4)
         big_date = QLabel(
             f"{self.current_date.month}月{self.current_date.day}日"
         )
         big_date.setStyleSheet(
             f"font-size:30px; font-weight:bold; color:{self.theme.text};"
         )
-        sub_date = QLabel(
-            f"{self.current_date.year}年 · {WEEKDAYS[self.current_date.weekday()]}"
-        )
-        sub_date.setStyleSheet(
-            f"font-size:15px; font-weight:bold; color:{self.theme.hint};"
-        )
-        date_col.addWidget(big_date)
-        date_col.addWidget(sub_date)
-        header.addLayout(date_col)
-        header.addStretch(1)
+        top_row.addWidget(big_date)
+        top_row.addStretch(1)
         self.mini_music_btn = QPushButton("🎵")
         self.mini_music_btn.setObjectName("miniIcon")
         self.mini_music_btn.setToolTip("音乐播放器")
         self.mini_music_btn.setFixedSize(30, 30)
         self.mini_music_btn.clicked.connect(self.open_music)
-        header.addWidget(self.mini_music_btn, 0, Qt.AlignTop)
+        top_row.addWidget(self.mini_music_btn)
         self.mini_notes_btn = QPushButton("📝")
         self.mini_notes_btn.setObjectName("miniIcon")
         self.mini_notes_btn.setToolTip("便签")
         self.mini_notes_btn.setFixedSize(30, 30)
         self.mini_notes_btn.clicked.connect(self.open_notes)
-        header.addWidget(self.mini_notes_btn, 0, Qt.AlignTop)
+        top_row.addWidget(self.mini_notes_btn)
         self.mini_pin_btn = QPushButton()
         self.mini_pin_btn.setObjectName("winBtn")
         self.mini_pin_btn.setToolTip("固定（不可拖动）")
         self.mini_pin_btn.setIconSize(QSize(24, 24))
         self.mini_pin_btn.setFixedSize(30, 30)
         self.mini_pin_btn.clicked.connect(self._toggle_mini_pin)
-        header.addWidget(self.mini_pin_btn, 0, Qt.AlignTop)
+        top_row.addWidget(self.mini_pin_btn)
         self._update_mini_pin_style()
+        date_col.addLayout(top_row)
+        sub_date = QLabel(
+            f"{self.current_date.year}年 · {WEEKDAYS[self.current_date.weekday()]}"
+        )
+        sub_date.setStyleSheet(
+            f"font-size:15px; font-weight:bold; color:{self.theme.hint};"
+        )
+        date_col.addWidget(sub_date)
+        header.addLayout(date_col, 1)
         expand_btn = QPushButton("↗ 展开")
         expand_btn.setObjectName("smallBtn")
         expand_btn.clicked.connect(self._exit_mini_mode)
-        header.addWidget(expand_btn, 0, Qt.AlignTop)
+        header.addWidget(expand_btn, 0, Qt.AlignBottom)
         layout.addLayout(header)
 
         self._mini_scroll = QScrollArea()

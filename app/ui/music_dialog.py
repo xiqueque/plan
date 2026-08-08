@@ -18,57 +18,9 @@ from PySide6.QtWidgets import (
 )
 
 from ..core import storage
+from .style import build_music_qss
 
 AUDIO_FILTER = "音频文件 (*.mp3 *.wav *.m4a *.wma *.ogg *.flac *.aac)"
-
-MUSIC_QSS = """
-QDialog {
-    background: #FFF7EC;
-    font-family: "幼圆", "Microsoft YaHei";
-    font-size: 15px;
-    color: #4A3728;
-}
-QLabel#nowLabel { font-size: 20px; font-weight: bold; color: #E07A3F; }
-QLabel#timeLabel { font-size: 14px; color: #A97E5A; }
-QListWidget {
-    background: white;
-    border: 2px solid #F3C98B;
-    border-radius: 14px;
-    font-size: 17px;
-    padding: 6px;
-}
-QListWidget::item { padding: 7px 10px; border-radius: 9px; }
-QListWidget::item:selected { background: #FFE2AE; color: #4A3728; }
-QPushButton {
-    background: #FFD9A0;
-    border: 2px solid #F0B860;
-    border-radius: 13px;
-    padding: 9px 14px;
-    font-size: 15px;
-    font-weight: bold;
-}
-QPushButton:hover { background: #FFC97A; }
-QPushButton:pressed { background: #F0B860; }
-QProgressBar {
-    background: #F7E6C6;
-    border: none;
-    border-radius: 9px;
-    height: 14px;
-}
-QProgressBar::chunk { background: #FF9E5E; border-radius: 9px; }
-QSlider::groove:horizontal {
-    height: 9px;
-    background: #F7E6C6;
-    border-radius: 4px;
-}
-QSlider::handle:horizontal {
-    width: 19px;
-    height: 19px;
-    margin: -5px 0;
-    background: #FF9E5E;
-    border-radius: 9px;
-}
-"""
 
 
 class SeekBar(QProgressBar):
@@ -111,9 +63,9 @@ class MusicPlayerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("音乐播放器")
         self.resize(500, 460)
-        self.setStyleSheet(MUSIC_QSS)
         self.mw = parent
         self.data = self.mw.data
+        self.setStyleSheet(build_music_qss(self.mw.theme))
 
         layout = QVBoxLayout(self)
         layout.setSpacing(10)

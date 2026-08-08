@@ -40,6 +40,7 @@ class MusicTestCase(unittest.TestCase):
         window = MainWindow()
         dialog = MusicPlayerDialog(window)
         self.assertGreaterEqual(dialog.playlist.count(), 1)
+        self.assertIn(window.theme.border, dialog.styleSheet())  # 配色跟随主题
         dialog._on_volume(35)
         self.assertEqual(window.data["settings"]["music_volume"], 35)
         dialog.close()
@@ -49,6 +50,7 @@ class MusicTestCase(unittest.TestCase):
         storage.save_data(data)
         window = MainWindow()
         dialog = NotesDialog(window)
+        self.assertIn(window.theme.border, dialog.styleSheet())
         dialog.edit.setPlainText("记得买牛奶")
         dialog._save()
         self.assertEqual(window.data["notes"], "记得买牛奶")

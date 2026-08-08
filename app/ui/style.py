@@ -139,3 +139,105 @@ QFrame#taskRow {
         danger_border=theme.danger_border,
     )
     return qss + CHECKBOX_QSS
+
+
+def build_music_qss(theme) -> str:
+    """音乐播放器样式：跟随主题配色，俏皮圆润。"""
+    return Template(
+        """
+QDialog {
+    background: $bg;
+    font-family: "幼圆", "Microsoft YaHei";
+    font-size: 15px;
+    color: $text;
+}
+QLabel#nowLabel { font-size: 20px; font-weight: bold; color: $border; }
+QLabel#timeLabel { font-size: 14px; color: $hint; }
+QListWidget {
+    background: $card;
+    border: 2px solid $border;
+    border-radius: 14px;
+    font-size: 17px;
+    padding: 6px;
+}
+QListWidget::item { padding: 7px 10px; border-radius: 9px; }
+QListWidget::item:selected { background: $button; color: $text; }
+QPushButton {
+    background: $button;
+    border: 2px solid $border;
+    border-radius: 13px;
+    padding: 9px 14px;
+    font-size: 15px;
+    font-weight: bold;
+}
+QPushButton:hover { background: $button_hover; }
+QPushButton:pressed { background: $button_pressed; }
+QProgressBar {
+    background: $button;
+    border: none;
+    border-radius: 9px;
+    height: 14px;
+}
+QProgressBar::chunk { background: $border; border-radius: 9px; }
+QSlider::groove:horizontal {
+    height: 9px;
+    background: $button;
+    border-radius: 4px;
+}
+QSlider::handle:horizontal {
+    width: 19px;
+    height: 19px;
+    margin: -5px 0;
+    background: $border;
+    border-radius: 9px;
+}
+"""
+    ).substitute(
+        bg=theme.bg,
+        text=theme.text,
+        border=theme.border,
+        hint=theme.hint,
+        card=theme.card,
+        button=theme.button,
+        button_hover=theme.button_hover,
+        button_pressed=theme.button_pressed,
+    )
+
+
+def build_notes_qss(theme) -> str:
+    """便签样式：跟随主题配色，清新圆润。"""
+    return Template(
+        """
+QDialog {
+    background: $bg;
+    font-family: "幼圆", "Microsoft YaHei";
+    font-size: 15px;
+    color: $text;
+}
+QTextEdit {
+    background: $card;
+    border: 2px solid $border;
+    border-radius: 14px;
+    font-size: 16px;
+    padding: 10px;
+}
+QPushButton {
+    background: $button;
+    border: 2px solid $border;
+    border-radius: 12px;
+    padding: 9px 16px;
+    font-size: 15px;
+    font-weight: bold;
+}
+QPushButton:hover { background: $button_hover; }
+QPushButton:pressed { background: $button_pressed; }
+"""
+    ).substitute(
+        bg=theme.bg,
+        text=theme.text,
+        border=theme.border,
+        card=theme.card,
+        button=theme.button,
+        button_hover=theme.button_hover,
+        button_pressed=theme.button_pressed,
+    )
