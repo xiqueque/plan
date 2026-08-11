@@ -481,7 +481,7 @@ class MainWindow(QMainWindow):
                 geo = screen.availableGeometry()
             except AttributeError:
                 geo = None
-        self.setMinimumSize(260, 180)
+        self.setMinimumSize(320, 180)
         self.resize(320, 240)
         if geo is not None:
             self.move(geo.right() - self.width() - 24, geo.top() + 24)
@@ -540,6 +540,7 @@ class MainWindow(QMainWindow):
         big_date.setStyleSheet(
             f"font-size:30px; font-weight:bold; color:{self.theme.text};"
         )
+        big_date.setMinimumWidth(130)  # 保证日期文字不被压缩到图标下方
         top_row.addWidget(big_date)
         top_row.addStretch(1)
         self.mini_music_btn = QPushButton("🎵")
@@ -569,6 +570,7 @@ class MainWindow(QMainWindow):
         sub_date.setStyleSheet(
             f"font-size:15px; font-weight:bold; color:{self.theme.hint};"
         )
+        sub_date.setMinimumWidth(140)
         date_col.addWidget(sub_date)
         header.addLayout(date_col, 1)
         expand_btn = QPushButton("↗ 展开")
