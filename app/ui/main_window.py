@@ -70,6 +70,7 @@ SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "check.wav"
 DEFAULT_SOUND_FILE = Path(__file__).resolve().parent.parent / "assets" / "8月7日_裁剪.wav"
 BASE_TASK_FONT_PX = 18
 APP_ICON = Path(__file__).resolve().parent.parent / "assets" / "app_icon.ico"
+PIN_ICON_FILE = Path(__file__).resolve().parent.parent / "assets" / "pin_icon.png"
 DOWNLOAD_IMAGE_FOLDER = Path(r"D:\Downloads")
 DOWNLOAD_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp", ".ico"}
 
@@ -528,56 +529,52 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
 
-        header = QVBoxLayout()
-        header.setSpacing(4)
-        # 第一行：日期（图标绝不影响文字）
-        date_row = QHBoxLayout()
-        date_row.setSpacing(8)
+        header = QHBoxLayout()
+        date_col = QVBoxLayout()
+        date_col.setSpacing(2)
+        top_row = QHBoxLayout()
+        top_row.setSpacing(4)
         big_date = QLabel(
             f"{self.current_date.month}月{self.current_date.day}日"
         )
         big_date.setStyleSheet(
             f"font-size:30px; font-weight:bold; color:{self.theme.text};"
         )
-        sub_date = QLabel(
-            f"{self.current_date.year}年 · {WEEKDAYS[self.current_date.weekday()]}"
-        )
-        sub_date.setStyleSheet(
-            f"font-size:15px; font-weight:bold; color:{self.theme.hint};"
-        )
-        date_row.addWidget(big_date)
-        date_row.addStretch(1)
-        date_row.addWidget(sub_date)
-        header.addLayout(date_row)
-        # 第二行：图标按钮
-        icon_row = QHBoxLayout()
-        icon_row.setSpacing(6)
+        top_row.addWidget(big_date)
+        top_row.addStretch(1)
         self.mini_music_btn = QPushButton("🎵")
         self.mini_music_btn.setObjectName("miniIcon")
         self.mini_music_btn.setToolTip("音乐播放器")
         self.mini_music_btn.setFixedSize(30, 30)
         self.mini_music_btn.clicked.connect(self.open_music)
-        icon_row.addWidget(self.mini_music_btn)
+        top_row.addWidget(self.mini_music_btn)
         self.mini_notes_btn = QPushButton("📝")
         self.mini_notes_btn.setObjectName("miniIcon")
         self.mini_notes_btn.setToolTip("便签")
         self.mini_notes_btn.setFixedSize(30, 30)
         self.mini_notes_btn.clicked.connect(self.open_notes)
-        icon_row.addWidget(self.mini_notes_btn)
+        top_row.addWidget(self.mini_notes_btn)
         self.mini_pin_btn = QPushButton()
         self.mini_pin_btn.setObjectName("winBtn")
         self.mini_pin_btn.setToolTip("固定（不可拖动）")
         self.mini_pin_btn.setIconSize(QSize(24, 24))
         self.mini_pin_btn.setFixedSize(30, 30)
         self.mini_pin_btn.clicked.connect(self._toggle_mini_pin)
-        icon_row.addWidget(self.mini_pin_btn)
+        top_row.addWidget(self.mini_pin_btn)
+        self._update_mini_pin_style()
+        date_col.addLayout(top_row)
+        sub_date = QLabel(
+            f"{self.current_date.year}年 · {WEEKDAYS[self.current_date.weekday()]}"
+        )
+        sub_date.setStyleSheet(
+            f"font-size:15px; font-weight:bold; color:{self.theme.hint};"
+        )
+        date_col.addWidget(sub_date)
+        header.addLayout(date_col, 1)
         expand_btn = QPushButton("↗ 展开")
         expand_btn.setObjectName("smallBtn")
         expand_btn.clicked.connect(self._exit_mini_mode)
-        icon_row.addWidget(expand_btn)
-        icon_row.addStretch(1)
-        self._update_mini_pin_style()
-        header.addLayout(icon_row)
+        header.addWidget(expand_btn, 0, Qt.AlignBottom)
         layout.addLayout(header)
 
         self._mini_scroll = QScrollArea()
@@ -720,13 +717,16 @@ class MainWindow(QMainWindow):
     def _update_mini_pin_style(self) -> None:
         pinned = self._mini_pinned()
         self.mini_pin_btn.setToolTip("取消固定" if pinned else "固定（不可拖动）")
-        latest = _latest_download_image()
-        if latest is not None:
-            self.mini_pin_btn.setIcon(QIcon(str(latest)))
+        if PIN_ICON_FILE.exists():
+            self.mini_pin_btn.setIcon(QIcon(str(PIN_ICON_FILE)))
         else:
-            self.mini_pin_btn.setIcon(
-                _make_pin_icon("#3B7DBF" if pinned else "#8FB8D4")
-            )
+            latest = _latest_download_image()
+            if latest is not None:
+                self.mini_pin_btn.setIcon(QIcon(str(latest)))
+            else:
+                self.mini_pin_btn.setIcon(
+                    _make_pin_icon("#3B7DBF" if pinned else "#8FB8D4")
+                )
         if pinned:
             self.mini_pin_btn.setStyleSheet(
                 "QPushButton { background:#ADD8E6; border:1px solid #7FB8D4; "
