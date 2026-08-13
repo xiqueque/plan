@@ -11,3 +11,6 @@ venv/
 build/
 dist/
 *.spec
+
+# 网站本地下载文件（发布到 GitHub 时用 Release 附件）
+website/download/

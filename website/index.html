@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>每日计划 - 下载</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "幼圆", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(160deg, #EAF6FC 0%, #D6EDF7 100%);
+      color: #1F3A4D;
+      min-height: 100vh;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 40px 20px 60px; }
+    .hero {
+      text-align: center;
+      background: rgba(255,255,255,0.75);
+      border: 2px solid #A8D8EA;
+      border-radius: 24px;
+      padding: 40px 24px;
+      box-shadow: 0 8px 24px rgba(63,140,175,0.12);
+    }
+    .hero .logo { font-size: 52px; }
+    .hero h1 { font-size: 34px; margin: 12px 0 8px; }
+    .hero p { font-size: 16px; color: #4A6B82; margin-bottom: 24px; }
+    .downloads { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: bold;
+      padding: 14px 30px;
+      border-radius: 16px;
+      border: 2px solid #7FB8D4;
+      background: #ADD8E6;
+      color: #1F3A4D;
+      transition: transform .12s ease, background .12s ease;
+    }
+    .btn:hover { background: #9CCFE0; transform: translateY(-2px); }
+    .btn.primary { background: #7FB8D4; color: #fff; border-color: #6FB1CE; }
+    .btn.primary:hover { background: #6FB1CE; }
+    .note { margin-top: 14px; font-size: 13px; color: #6B8CA3; }
+    .section {
+      background: rgba(255,255,255,0.85);
+      border: 1px solid #D5E8F2;
+      border-radius: 18px;
+      padding: 26px 24px;
+      margin-top: 24px;
+    }
+    .section h2 { font-size: 22px; margin-bottom: 14px; }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .feature {
+      background: #F2FAFF;
+      border: 1px solid #D5E8F2;
+      border-radius: 14px;
+      padding: 14px;
+      font-size: 14px;
+    }
+    .feature b { display: block; font-size: 16px; margin-bottom: 4px; }
+    ul { padding-left: 20px; line-height: 1.8; font-size: 15px; }
+    .footer { text-align: center; margin-top: 30px; color: #6B8CA3; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="logo">📅</div>
+      <h1>每日计划</h1>
+      <p>Windows 桌面每日计划工具 · 简洁、可爱、透明</p>
+      <div class="downloads">
+        <a class="btn primary" href="download/每日计划_v1.0.zip">⬇ 下载完整版（推荐）</a>
+        <a class="btn" href="download/每日计划.exe">⬇ 仅下载程序</a>
+      </div>
+      <div class="note">完整版包含：程序 + 8 套配色主题 + 使用说明</div>
+    </div>
+
+    <div class="section">
+      <h2>✨ 功能亮点</h2>
+      <div class="features">
+        <div class="feature"><b>📝 每日计划</b>增删改、勾选完成、置顶、搜索、日历跳转、月度计划</div>
+        <div class="feature"><b>⏰ 到点提醒</b>右下角弹窗 + 可爱音效，周一至周日任选</div>
+        <div class="feature"><b>🖼 图片</b>课程表等图片随计划保存，每日图片星标</div>
+        <div class="feature"><b>🎵 音乐播放器</b>内置音乐，可加本地歌曲，随机/循环播放</div>
+        <div class="feature"><b>📝 便签</b>随手记小事，即改即存</div>
+        <div class="feature"><b>🎨 8 套主题</b>淡蓝默认，配色随图切换</div>
+        <div class="feature"><b>🪟 迷你窗口</b>桌面右上角半透明挂件，不打扰</div>
+        <div class="feature"><b>📷 一键截图</b>今日计划 / 月度计划卡片，发手机查看</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>🖥 系统要求</h2>
+      <ul>
+        <li>Windows 10 / 11</li>
+        <li>无需安装其他软件，双击即可运行</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>📖 使用方法</h2>
+      <ul>
+        <li>解压下载的压缩包（完整版），双击里面的 <b>每日计划.exe</b></li>
+        <li>首次运行会自动在桌面创建快捷方式</li>
+        <li>你的数据保存在 exe 旁边的 <b>data</b> 文件夹，备份时复制它即可</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <h2>❓ 常见问题</h2>
+      <ul>
+        <li><b>杀毒软件提示？</b>程序为独立打包，添加信任即可。</li>
+        <li><b>提醒不响？</b>请保持程序运行，或在设置中开启「开机自动启动」。</li>
+        <li><b>想换音效？</b>设置里可选择本地音频（wav / mp3）。</li>
+        <li><b>更新软件？</b>下载新版替换 exe，data 文件夹保留即可，数据不丢。</li>
+      </ul>
+    </div>
+
+    <div class="footer">每日计划 v1.0 · 2026-08 · 仅支持 Windows</div>
+  </div>
+</body>
+</html>
