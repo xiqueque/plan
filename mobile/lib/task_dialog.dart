@@ -1,0 +1,280 @@
+import 'package:flutter/material.dart';
+
+import 'models.dart';
+
+class TaskDialog extends StatefulWidget {
+  final Task? task;
+  final DateTime date;
+
+  const TaskDialog({super.key, this.task, required this.date});
+
+  @override
+  State<TaskDialog> createState() => _TaskDialogState();
+}
+
+class _TaskDialogState extends State<TaskDialog> {
+  late final TextEditingController _textCtrl;
+  late String _color;
+  late bool _isDaily;
+  TimeOfDay? _start;
+  TimeOfDay? _end;
+
+  @override
+  void initState() {
+    super.initState();
+    final t = widget.task;
+    _textCtrl = TextEditingController(text: t?.text ?? '');
+    _color = t?.color ?? '#1F3A4D';
+    _isDaily = t?.isDaily ?? false;
+    _start = _parseTime(t?.timeStart);
+    _end = _parseTime(t?.timeEnd);
+  }
+
+  TimeOfDay? _parseTime(String? s) {
+    if (s == null || !s.contains(':')) return null;
+    final parts = s.split(':');
+    return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+  }
+
+  String _fmt(TimeOfDay? t) => t == null
+      ? ''
+      : '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _pickTime(bool isStart) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: isStart
+          ? (_start ?? const TimeOfDay(hour: 9, minute: 0))
+          : (_end ?? const TimeOfDay(hour: 10, minute: 0)),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isStart) {
+        _start = picked;
+      } else {
+        _end = picked;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _textCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.task == null ? '添加计划' : '编辑计划'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _textCtrl,
+              autofocus: true,
+              maxLines: 3,
+              minLines: 1,
+              decoration: const InputDecoration(
+                hintText: '写点什么…',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                _TimeButton(
+                  label: _start == null ? '开始时间' : _fmt(_start),
+                  onTap: () => _pickTime(true),
+                  onClear: _start == null
+                      ? null
+                      : () => setState(() => _start = null),
+                ),
+                const SizedBox(width: 10),
+                _TimeButton(
+                  label: _end == null ? '结束时间' : _fmt(_end),
+                  onTap: () => _pickTime(false),
+                  onClear:
+                      _end == null ? null : () => setState(() => _end = null),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            const Text('颜色', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: taskColors
+                  .map((c) => _ColorChip(
+                        hex: c.$1,
+                        label: c.$2,
+                        selected: _color == c.$1,
+                        onTap: () => setState(() => _color = c.$1),
+                      ))
+                  .toList(),
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('每天重复'),
+              subtitle: const Text('每天自动出现在计划里'),
+              value: _isDaily,
+              onChanged: (v) => setState(() => _isDaily = v),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+
+  void _save() {
+    final text = _textCtrl.text.trim();
+    if (text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('写点内容再保存吧~')),
+      );
+      return;
+    }
+    final old = widget.task;
+    final start = _fmt(_start);
+    final end = _fmt(_end);
+    final task = Task(
+      id: old?.id ?? newTaskId(),
+      text: text,
+      date: old?.date ??
+          '${widget.date.year.toString().padLeft(4, '0')}-'
+              '${widget.date.month.toString().padLeft(2, '0')}-'
+              '${widget.date.day.toString().padLeft(2, '0')}',
+      timeStart: start.isEmpty ? null : start,
+      timeEnd: end.isEmpty ? null : end,
+      isDaily: _isDaily,
+      color: _color,
+      reminderMode: _isDaily ? 'daily' : (old?.reminderMode ?? 'none'),
+      reminderTime: old?.reminderTime,
+      reminderWeekdays: old?.reminderWeekdays,
+      images: old?.images ?? [],
+      pinned: old?.pinned ?? false,
+      pinnedAt: old?.pinnedAt,
+      createdAt: old?.createdAt ?? DateTime.now().millisecondsSinceEpoch / 1000,
+    );
+    Navigator.pop(context, task);
+  }
+}
+
+class _TimeButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
+
+  const _TimeButton({
+    required this.label,
+    required this.onTap,
+    this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEAF6FC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFA8D8EA)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.schedule, size: 18, color: Color(0xFF1F3A4D)),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: Color(0xFF1F3A4D), fontWeight: FontWeight.w600),
+                ),
+              ),
+              if (onClear != null) ...[
+                const SizedBox(width: 4),
+                InkWell(
+                  onTap: onClear,
+                  child: const Icon(Icons.close,
+                      size: 16, color: Color(0xFF8A9BA8)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorChip extends StatelessWidget {
+  final String hex;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ColorChip({
+    required this.hex,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = colorFromHex(hex);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? c.withValues(alpha: 0.2) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected ? c : const Color(0xFFD5E8F2),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: Color(0xFF1F3A4D),
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
