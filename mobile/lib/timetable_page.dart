@@ -34,6 +34,25 @@ class _TimetablePageState extends State<TimetablePage> {
     return indexed.map((e) => e.value).toList();
   }
 
+  /// 上午：开始时间在 12:00 之前
+  List<Course> _morningOf(int weekday) => _coursesOf(weekday)
+      .where((c) =>
+          (c.timeStart ?? '').isNotEmpty &&
+          c.timeStart!.compareTo('12:00') < 0)
+      .toList();
+
+  /// 下午：开始时间在 12:00 及之后
+  List<Course> _afternoonOf(int weekday) => _coursesOf(weekday)
+      .where((c) =>
+          (c.timeStart ?? '').isNotEmpty &&
+          c.timeStart!.compareTo('12:00') >= 0)
+      .toList();
+
+  /// 其他：没填时间的课程
+  List<Course> _othersOf(int weekday) => _coursesOf(weekday)
+      .where((c) => (c.timeStart ?? '').isEmpty)
+      .toList();
+
   Future<void> _openCourseDialog([Course? course]) async {
     final result = await showDialog<Object>(
       context: context,
@@ -156,9 +175,48 @@ class _TimetablePageState extends State<TimetablePage> {
                 child: Text('这天没课',
                     style: TextStyle(fontSize: 13, color: T.t.hint)),
               )
-            else
-              ..._coursesOf(d).map((c) => _buildCourseTile(c)),
+            else ...[
+              if (_morningOf(d).isNotEmpty) ...[
+                _sectionHeader('上午', _morningOf(d).length),
+                ..._morningOf(d).map((c) => _buildCourseTile(c)),
+              ],
+              if (_afternoonOf(d).isNotEmpty) ...[
+                _sectionHeader('下午', _afternoonOf(d).length),
+                ..._afternoonOf(d).map((c) => _buildCourseTile(c)),
+              ],
+              if (_othersOf(d).isNotEmpty) ...[
+                _sectionHeader('其他', _othersOf(d).length),
+                ..._othersOf(d).map((c) => _buildCourseTile(c)),
+              ],
+            ],
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title, int count) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 6),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: T.t.primary.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: T.t.text,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text('$count 节', style: TextStyle(fontSize: 11, color: T.t.hint)),
         ],
       ),
     );
