@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'fx.dart';
 import 'models.dart';
 
 class TaskDialog extends StatefulWidget {
@@ -41,6 +42,7 @@ class _TaskDialogState extends State<TaskDialog> {
       : '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   Future<void> _pickTime(bool isStart) async {
+    Fx.tap();
     final picked = await showTimePicker(
       context: context,
       initialTime: isStart
@@ -112,7 +114,10 @@ class _TaskDialogState extends State<TaskDialog> {
                         hex: c.$1,
                         label: c.$2,
                         selected: _color == c.$1,
-                        onTap: () => setState(() => _color = c.$1),
+                        onTap: () {
+                          Fx.tap();
+                          setState(() => _color = c.$1);
+                        },
                       ))
                   .toList(),
             ),
@@ -122,18 +127,27 @@ class _TaskDialogState extends State<TaskDialog> {
               title: const Text('每天重复'),
               subtitle: const Text('每天自动出现在计划里'),
               value: _isDaily,
-              onChanged: (v) => setState(() => _isDaily = v),
+              onChanged: (v) {
+                Fx.tap();
+                setState(() => _isDaily = v);
+              },
             ),
           ],
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            Fx.tap();
+            Navigator.pop(context);
+          },
           child: const Text('取消'),
         ),
         FilledButton(
-          onPressed: _save,
+          onPressed: () {
+            Fx.tap();
+            _save();
+          },
           child: const Text('保存'),
         ),
       ],

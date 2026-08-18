@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'fx.dart';
 import 'models.dart';
 import 'storage.dart';
 import 'task_dialog.dart';
@@ -49,16 +50,19 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _shiftDay(int delta) {
+    Fx.tap();
     setState(() {
       _date = _date.add(Duration(days: delta));
     });
   }
 
   void _goToday() {
+    Fx.tap();
     setState(() => _date = DateTime.now());
   }
 
   Future<void> _openTaskDialog([Task? task]) async {
+    Fx.tap();
     final result = await showDialog<Task>(
       context: context,
       builder: (_) => TaskDialog(task: task, date: _date),
@@ -100,11 +104,13 @@ class _MainScreenState extends State<MainScreen> {
       if (ok != true) return;
       setState(() => _data.setDone(t.id, ds, true));
       await _save();
+      Fx.complete();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('终于完成任务了耶o(*≧▽≦)ツ┏━┓！！！')),
       );
     } else {
+      Fx.tap();
       setState(() => _data.setDone(t.id, ds, false));
       await _save();
     }
@@ -120,17 +126,26 @@ class _MainScreenState extends State<MainScreen> {
             ListTile(
               leading: Icon(t.pinned ? Icons.push_pin_outlined : Icons.push_pin),
               title: Text(t.pinned ? '取消置顶' : '置顶'),
-              onTap: () => Navigator.pop(ctx, 'pin'),
+              onTap: () {
+                Fx.tap();
+                Navigator.pop(ctx, 'pin');
+              },
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: const Text('编辑'),
-              onTap: () => Navigator.pop(ctx, 'edit'),
+              onTap: () {
+                Fx.tap();
+                Navigator.pop(ctx, 'edit');
+              },
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: Colors.red),
               title: const Text('删除', style: TextStyle(color: Colors.red)),
-              onTap: () => Navigator.pop(ctx, 'delete'),
+              onTap: () {
+                Fx.tap();
+                Navigator.pop(ctx, 'delete');
+              },
             ),
           ],
         ),
@@ -158,11 +173,17 @@ class _MainScreenState extends State<MainScreen> {
         content: Text('确定删除「${t.text}」吗？'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () {
+              Fx.tap();
+              Navigator.pop(ctx, false);
+            },
             child: const Text('取消'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
+            onPressed: () {
+              Fx.tap();
+              Navigator.pop(ctx, true);
+            },
             child: const Text('删除'),
           ),
         ],
