@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'fx.dart';
 import 'image_store.dart';
 import 'models.dart';
+import 'theme.dart';
 
 class TaskDialog extends StatefulWidget {
   final Task? task;
@@ -386,29 +387,29 @@ class _TimeButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFEAF6FC),
+            color: T.t.bg,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFA8D8EA)),
+            border: Border.all(color: T.t.borderSoft),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.schedule, size: 18, color: Color(0xFF1F3A4D)),
+              Icon(Icons.schedule, size: 18, color: T.t.text),
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
                   label,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: Color(0xFF1F3A4D), fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                      color: T.t.text, fontWeight: FontWeight.w600),
                 ),
               ),
               if (onClear != null) ...[
                 const SizedBox(width: 4),
                 InkWell(
                   onTap: onClear,
-                  child: const Icon(Icons.close,
-                      size: 16, color: Color(0xFF8A9BA8)),
+                  child: Icon(Icons.close,
+                      size: 16, color: T.t.hint),
                 ),
               ],
             ],
@@ -444,7 +445,7 @@ class _ColorChip extends StatelessWidget {
           color: selected ? c.withValues(alpha: 0.2) : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? c : const Color(0xFFD5E8F2),
+            color: selected ? c : T.t.borderSoft,
             width: selected ? 2 : 1,
           ),
         ),
@@ -460,7 +461,7 @@ class _ColorChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: Color(0xFF1F3A4D),
+                color: T.t.text,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -494,17 +495,17 @@ class _WeekdayChip extends StatelessWidget {
         height: 34,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFF7FB8D4) : Colors.white,
+          color: selected ? T.t.primary : Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected ? const Color(0xFF7FB8D4) : const Color(0xFFD5E8F2),
+            color: selected ? T.t.primary : T.t.borderSoft,
           ),
         ),
         child: Text(
           _names[index],
           style: TextStyle(
             fontSize: 12,
-            color: selected ? Colors.white : const Color(0xFF1F3A4D),
+            color: selected ? Colors.white : T.t.text,
             fontWeight: selected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -532,12 +533,12 @@ class _ImageThumb extends StatelessWidget {
               height: 76,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                color: const Color(0xFFEAF6FC),
+                color: T.t.bg,
               ),
               clipBehavior: Clip.antiAlias,
               child: f == null
-                  ? const Center(
-                      child: Icon(Icons.image, color: Color(0xFFA8D8EA)))
+                  ? Center(
+                      child: Icon(Icons.image, color: T.t.borderSoft))
                   : Image.file(
                       f,
                       width: 76,
@@ -584,17 +585,17 @@ class _AddImageTile extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-              color: const Color(0xFFA8D8EA), width: 1.5),
+              color: T.t.borderSoft, width: 1.5),
           color: Colors.white,
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.add_photo_alternate_outlined,
-                size: 24, color: Color(0xFF7FB8D4)),
+                size: 24, color: T.t.primary),
             SizedBox(height: 2),
             Text('添加图片',
-                style: TextStyle(fontSize: 10, color: Color(0xFF6B8CA3))),
+                style: TextStyle(fontSize: 10, color: T.t.hint)),
           ],
         ),
       ),

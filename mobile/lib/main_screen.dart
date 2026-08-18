@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'calendar_page.dart';
+import 'app_theme.dart';
 import 'fx.dart';
 import 'image_store.dart';
 import 'models.dart';
 import 'reminder_service.dart';
+import 'settings_page.dart';
 import 'storage.dart';
 import 'task_dialog.dart';
+import 'theme.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -30,7 +33,18 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    T.notifier.addListener(_onThemeChanged);
     _load();
+  }
+
+  @override
+  void dispose() {
+    T.notifier.removeListener(_onThemeChanged);
+    super.dispose();
+  }
+
+  void _onThemeChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -40,6 +54,9 @@ class _MainScreenState extends State<MainScreen> {
       _data = d;
       _loaded = true;
     });
+    T.apply((d.settings['theme'] as String?) ?? appThemeDefault.id);
+    Fx.soundEnabled = d.settings['sound'] != false;
+    Fx.vibrationEnabled = d.settings['vibrate'] != false;
     await ReminderService.instance.init();
     await ReminderService.instance.rescheduleAll(_data);
   }
@@ -102,6 +119,16 @@ class _MainScreenState extends State<MainScreen> {
     if (picked != null && mounted) {
       setState(() => _date = picked);
     }
+  }
+
+  Future<void> _openSettings() async {
+    Fx.tap();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SettingsPage(data: _data, onChanged: () => _save()),
+      ),
+    );
   }
 
   Future<void> _toggleDone(Task t, bool value) async {
@@ -396,7 +423,7 @@ class _MainScreenState extends State<MainScreen> {
     }).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFEAF6FC),
+      backgroundColor: T.t.bg,
       body: SafeArea(
         child: Column(
           children: [
@@ -417,7 +444,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _openTaskDialog(),
-        backgroundColor: const Color(0xFF7FB8D4),
+        backgroundColor: T.t.primary,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: const Icon(Icons.add, size: 30),
@@ -434,7 +461,7 @@ class _MainScreenState extends State<MainScreen> {
           IconButton(
             onPressed: () => _shiftDay(-1),
             icon: const Icon(Icons.chevron_left, size: 32),
-            color: const Color(0xFF1F3A4D),
+            color: T.t.text,
           ),
           Expanded(
             child: Column(
@@ -447,10 +474,10 @@ class _MainScreenState extends State<MainScreen> {
                         horizontal: 12, vertical: 4),
                     child: Text(
                       '${_date.month}月${_date.day}日 ${_weekdayNames[_date.weekday - 1]}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F3A4D),
+                        color: T.t.text,
                       ),
                     ),
                   ),
@@ -462,11 +489,11 @@ class _MainScreenState extends State<MainScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 8),
                     visualDensity: VisualDensity.compact,
                   ),
-                  icon: const Icon(Icons.calendar_month,
-                      size: 15, color: Color(0xFF7FB8D4)),
-                  label: const Text(
+                  icon: Icon(Icons.calendar_month,
+                      size: 15, color: T.t.primary),
+                  label: Text(
                     '日历',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF6B8CA3)),
+                    style: TextStyle(fontSize: 12, color: T.t.hint),
                   ),
                 ),
                 if (!_isToday)
@@ -478,8 +505,8 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     child: Text(
                       '回到今天 ${now.month}月${now.day}日',
-                      style: const TextStyle(
-                          fontSize: 13, color: Color(0xFF6B8CA3)),
+                      style: TextStyle(
+                          fontSize: 13, color: T.t.hint),
                     ),
                   )
                 else
@@ -490,7 +517,12 @@ class _MainScreenState extends State<MainScreen> {
           IconButton(
             onPressed: () => _shiftDay(1),
             icon: const Icon(Icons.chevron_right, size: 32),
-            color: const Color(0xFF1F3A4D),
+            color: T.t.text,
+          ),
+          IconButton(
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings_outlined, size: 22),
+            color: T.t.hint,
           ),
         ],
       ),
@@ -504,11 +536,11 @@ class _MainScreenState extends State<MainScreen> {
         onChanged: (v) => setState(() => _query = v.trim()),
         decoration: InputDecoration(
           hintText: '搜索计划…',
-          prefixIcon: const Icon(Icons.search, color: Color(0xFF6B8CA3)),
+          prefixIcon: Icon(Icons.search, color: T.t.hint),
           suffixIcon: _query.isEmpty
               ? null
               : IconButton(
-                  icon: const Icon(Icons.clear, color: Color(0xFF6B8CA3)),
+                  icon: Icon(Icons.clear, color: T.t.hint),
                   onPressed: () => setState(() => _query = ''),
                 ),
           filled: true,
@@ -549,18 +581,18 @@ class _MainScreenState extends State<MainScreen> {
                             ? Icons.expand_more
                             : Icons.chevron_right,
                         size: 20,
-                        color: const Color(0xFF6B8CA3),
+                        color: T.t.hint,
                       ),
                       const SizedBox(width: 2),
-                      const Icon(Icons.photo_library_outlined,
-                          size: 18, color: Color(0xFF7FB8D4)),
+                      Icon(Icons.photo_library_outlined,
+                          size: 18, color: T.t.primary),
                       const SizedBox(width: 6),
                       Text(
                         '图片 ${names.length} 张',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F3A4D),
+                          color: T.t.text,
                         ),
                       ),
                     ],
@@ -574,7 +606,7 @@ class _MainScreenState extends State<MainScreen> {
                 label: const Text('添加'),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  foregroundColor: const Color(0xFF6B8CA3),
+                  foregroundColor: T.t.hint,
                 ),
               ),
             ],
@@ -584,9 +616,9 @@ class _MainScreenState extends State<MainScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: names.isEmpty
-                ? const Text(
+                ? Text(
                     '今天还没有图片，点「添加」从相册选吧',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF8A9BA8)),
+                    style: TextStyle(fontSize: 13, color: T.t.hint),
                   )
                 : GridView.builder(
                     shrinkWrap: true,
@@ -612,12 +644,12 @@ class _MainScreenState extends State<MainScreen> {
                                 Container(
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(10),
-                                    color: const Color(0xFFD5E8F2),
+                                    color: T.t.borderSoft,
                                   ),
                                   clipBehavior: Clip.antiAlias,
                                   child: f == null
-                                      ? const Icon(Icons.image,
-                                          color: Color(0xFF8A9BA8))
+                                      ? Icon(Icons.image,
+                                          color: T.t.hint)
                                       : Image.file(
                                           f,
                                           width: double.infinity,
@@ -654,8 +686,8 @@ class _MainScreenState extends State<MainScreen> {
           Text(
             _query.isEmpty ? '今天还没有计划~\n点右下角 + 添加一条吧' : '没有找到相关计划',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF6B8CA3),
+            style: TextStyle(
+              color: T.t.hint,
               fontSize: 15,
               height: 1.6,
             ),
@@ -714,19 +746,19 @@ class _MainScreenState extends State<MainScreen> {
                       const SizedBox(height: 3),
                       Text(
                         timeText,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF8A9BA8),
+                          color: T.t.hint,
                         ),
                       ),
                     ],
                     if (t.isDaily) ...[
                       const SizedBox(height: 3),
-                      const Text(
+                      Text(
                         '每天重复',
                         style: TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF7FB8D4),
+                          color: T.t.primary,
                         ),
                       ),
                     ],
@@ -738,8 +770,8 @@ class _MainScreenState extends State<MainScreen> {
                 const SizedBox(width: 4),
               ],
               IconButton(
-                icon: const Icon(Icons.more_vert,
-                    size: 20, color: Color(0xFF8A9BA8)),
+                icon: Icon(Icons.more_vert,
+                    size: 20, color: T.t.hint),
                 onPressed: () => _showTaskMenu(t),
               ),
             ],
@@ -773,7 +805,7 @@ class _CheckCircle extends StatelessWidget {
           shape: BoxShape.circle,
           color: done ? color : Colors.white,
           border: Border.all(
-            color: done ? color : const Color(0xFFA8D8EA),
+            color: done ? color : T.t.borderSoft,
             width: 2,
           ),
         ),

@@ -5,6 +5,10 @@ import 'package:flutter/services.dart';
 class Fx {
   Fx._();
 
+  /// 是否播放按键音效 / 震动（由设置控制）
+  static bool soundEnabled = true;
+  static bool vibrationEnabled = true;
+
   static final AudioPlayer _clickPlayer = AudioPlayer();
   static final AudioPlayer _donePlayer = AudioPlayer();
   static bool _init = false;
@@ -21,7 +25,10 @@ class Fx {
   /// 普通按键：轻震 + 可爱小音效
   static Future<void> tap() async {
     try {
-      await HapticFeedback.lightImpact();
+      if (vibrationEnabled) {
+        await HapticFeedback.lightImpact();
+      }
+      if (!soundEnabled) return;
       await _ensure();
       await _clickPlayer.stop();
       await _clickPlayer.play(AssetSource('sounds/click.wav'));
@@ -33,7 +40,10 @@ class Fx {
   /// 完成任务：略强一点的震动 + 完成音效
   static Future<void> complete() async {
     try {
-      await HapticFeedback.mediumImpact();
+      if (vibrationEnabled) {
+        await HapticFeedback.mediumImpact();
+      }
+      if (!soundEnabled) return;
       await _ensure();
       await _donePlayer.stop();
       await _donePlayer.play(AssetSource('sounds/done.wav'));

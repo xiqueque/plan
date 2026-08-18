@@ -5,6 +5,7 @@ import 'models.dart';
 import 'reminder_service.dart';
 import 'storage.dart';
 import 'task_dialog.dart';
+import 'theme.dart';
 
 /// 日历：月份网格 + 选中日期的任务预览 + 跳转到某一天。
 class CalendarPage extends StatefulWidget {
@@ -27,8 +28,19 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   void initState() {
     super.initState();
+    T.notifier.addListener(_onTheme);
     _selected = widget.initial;
     _month = DateTime(_selected.year, _selected.month);
+  }
+
+  @override
+  void dispose() {
+    T.notifier.removeListener(_onTheme);
+    super.dispose();
+  }
+
+  void _onTheme() {
+    if (mounted) setState(() {});
   }
 
   String _dateStr(DateTime d) =>
@@ -69,15 +81,15 @@ class _CalendarPageState extends State<CalendarPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFEAF6FC),
+      backgroundColor: T.t.bg,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('日历',
+        title: Text('日历',
             style: TextStyle(
-                color: Color(0xFF1F3A4D), fontWeight: FontWeight.bold)),
+                color: T.t.text, fontWeight: FontWeight.bold)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1F3A4D)),
+          icon: Icon(Icons.arrow_back, color: T.t.text),
           onPressed: () {
             Fx.tap();
             Navigator.pop(context);
@@ -86,7 +98,7 @@ class _CalendarPageState extends State<CalendarPage> {
         actions: [
           TextButton(
             onPressed: _goToday,
-            child: const Text('今天', style: TextStyle(color: Color(0xFF6B8CA3))),
+            child: Text('今天', style: TextStyle(color: T.t.hint)),
           ),
         ],
       ),
@@ -105,13 +117,13 @@ class _CalendarPageState extends State<CalendarPage> {
               child: FilledButton.icon(
                 onPressed: () => Navigator.pop(context, _selected),
                 style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF7FB8D4),
+                  backgroundColor: T.t.primary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 icon: const Icon(Icons.today),
                 label: Text(
                   '跳转到 ${_selected.month}月${_selected.day}日',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -148,22 +160,22 @@ class _CalendarPageState extends State<CalendarPage> {
             children: [
               IconButton(
                 onPressed: () => _shiftMonth(-1),
-                icon: const Icon(Icons.chevron_left, color: Color(0xFF1F3A4D)),
+                icon: Icon(Icons.chevron_left, color: T.t.text),
               ),
               Expanded(
                 child: Text(
                   '${_month.year}年${_month.month}月',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F3A4D),
+                    color: T.t.text,
                   ),
                 ),
               ),
               IconButton(
                 onPressed: () => _shiftMonth(1),
-                icon: const Icon(Icons.chevron_right, color: Color(0xFF1F3A4D)),
+                icon: Icon(Icons.chevron_right, color: T.t.text),
               ),
             ],
           ),
@@ -173,9 +185,9 @@ class _CalendarPageState extends State<CalendarPage> {
                       child: Center(
                         child: Text(
                           w,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF8A9BA8),
+                            color: T.t.hint,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -213,11 +225,11 @@ class _CalendarPageState extends State<CalendarPage> {
                   margin: const EdgeInsets.all(2),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFFB9DEEE)
+                        ? T.t.borderSoft
                         : Colors.transparent,
                     shape: BoxShape.circle,
                     border: isToday && !isSelected
-                        ? Border.all(color: const Color(0xFF7FB8D4), width: 1.5)
+                        ? Border.all(color: T.t.primary, width: 1.5)
                         : null,
                   ),
                   child: Column(
@@ -231,7 +243,7 @@ class _CalendarPageState extends State<CalendarPage> {
                               isSelected || isToday ? FontWeight.bold : FontWeight.normal,
                           color: isToday
                               ? const Color(0xFF1E88E5)
-                              : const Color(0xFF1F3A4D),
+                              : T.t.text,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -240,7 +252,7 @@ class _CalendarPageState extends State<CalendarPage> {
                         height: 5,
                         decoration: BoxDecoration(
                           color: hasTasks
-                              ? const Color(0xFF7FB8D4)
+                              ? T.t.primary
                               : Colors.transparent,
                           shape: BoxShape.circle,
                         ),
@@ -265,20 +277,20 @@ class _CalendarPageState extends State<CalendarPage> {
         Text(
           '${_selected.month}月${_selected.day}日 ${_dayNames[_selected.weekday - 1]}'
           '${tasks.isEmpty ? '' : ' · ${tasks.length} 条计划'}',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF1F3A4D),
+            color: T.t.text,
           ),
         ),
         const SizedBox(height: 8),
         if (tasks.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: Text(
                 '这一天还没有计划',
-                style: TextStyle(color: Color(0xFF8A9BA8)),
+                style: TextStyle(color: T.t.hint),
               ),
             ),
           )
@@ -303,7 +315,7 @@ class _CalendarPageState extends State<CalendarPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         leading: Icon(
           done ? Icons.check_circle : Icons.radio_button_unchecked,
-          color: done ? color : const Color(0xFFA8D8EA),
+          color: done ? color : T.t.borderSoft,
         ),
         title: Text(
           t.text,
@@ -319,7 +331,7 @@ class _CalendarPageState extends State<CalendarPage> {
             ? null
             : Text(
                 timeText,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF8A9BA8)),
+                style: TextStyle(fontSize: 12, color: T.t.hint),
               ),
         trailing: t.pinned
             ? const Icon(Icons.push_pin, size: 16, color: Color(0xFFF5A623))
