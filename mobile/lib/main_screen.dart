@@ -9,8 +9,10 @@ import 'fx.dart';
 import 'image_store.dart';
 import 'models.dart';
 import 'music_page.dart';
+import 'notes_page.dart';
 import 'reminder_service.dart';
 import 'settings_page.dart';
+import 'package:share_plus/share_plus.dart';
 import 'storage.dart';
 import 'task_dialog.dart';
 import 'theme.dart';
@@ -29,6 +31,8 @@ class _MainScreenState extends State<MainScreen> {
   String _query = '';
   bool _loaded = false;
   bool _showImages = false;
+  bool _batchMode = false;
+  Set<String> _batchIds = {};
 
   static const _weekdayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -149,6 +153,190 @@ class _MainScreenState extends State<MainScreen> {
       context,
       MaterialPageRoute(builder: (_) => const MusicPage()),
     );
+  }
+
+  Future<void> _openNotes() async {
+    Fx.tap();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => NotesPage(data: _data, onChanged: () => _save()),
+      ),
+    );
+  }
+
+  Future<void> _shareToday() async {
+    Fx.tap();
+    final ds = _dateStr(_date);
+    final tasks = _data.tasksForDate(ds);
+    final lines = tasks.map((t) {
+      final time = formatTimePeriod(t.timeStart, t.timeEnd);
+      final done = _data.isDone(t.id, ds);
+      final mark = done ? '✓' : '□';
+      return time.isEmpty ? '$mark ${t.text}' : '$mark ${t.text}（$time）';
+    }).toList();
+    final content = [
+      '每日计划 · ${_date.month}月${_date.day}日',
+      '',
+      ...(lines.isEmpty ? ['（今天没有计划）'] : lines),
+    ].join('\n');
+    try {
+      await SharePlus.instance.share(ShareParams(text: content));
+    } catch (_) {
+      // 分享失败不影响使用
+    }
+  }
+
+  void _enterBatchMode() {
+    Fx.tap();
+    setState(() {
+      _batchMode = true;
+      _batchIds.clear();
+    });
+  }
+
+  void _exitBatchMode() {
+    Fx.tap();
+    setState(() {
+      _batchMode = false;
+      _batchIds.clear();
+    });
+  }
+
+  void _toggleBatchSelect(String id) {
+    setState(() {
+      if (_batchIds.contains(id)) {
+        _batchIds.remove(id);
+      } else {
+        _batchIds.add(id);
+      }
+    });
+  }
+
+  void _selectAllVisible(List<Task> tasks) {
+    Fx.tap();
+    setState(() {
+      if (tasks.isNotEmpty && _batchIds.length == tasks.length) {
+        _batchIds.clear();
+      } else {
+        _batchIds = tasks.map((t) => t.id).toSet();
+      }
+    });
+  }
+
+  List<Task> _selectedTasks() =>
+      _data.tasks.where((t) => _batchIds.contains(t.id)).toList();
+
+  Future<void> _batchColor() async {
+    if (_batchIds.isEmpty) {
+      _batchHint();
+      return;
+    }
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('改为颜色'),
+        content: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: taskColors
+              .map((c) => ChoiceChip(
+                    label: Text(c.$2),
+                    selected: false,
+                    selectedColor:
+                        colorFromHex(c.$1).withValues(alpha: 0.25),
+                    onSelected: (_) => Navigator.pop(ctx, c.$1),
+                  ))
+              .toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Fx.tap();
+              Navigator.pop(ctx);
+            },
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+    if (picked == null) return;
+    for (final t in _selectedTasks()) {
+      t.color = picked;
+    }
+    setState(() {});
+    await _save();
+  }
+
+  void _batchPin() {
+    if (_batchIds.isEmpty) {
+      _batchHint();
+      return;
+    }
+    final sel = _selectedTasks();
+    final allPinned = sel.every((t) => t.pinned);
+    for (final t in sel) {
+      t.pinned = !allPinned;
+      t.pinnedAt = DateTime.now().millisecondsSinceEpoch / 1000;
+    }
+    setState(() {});
+    _save();
+  }
+
+  void _batchHint() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('先勾选要操作的计划吧')),
+    );
+  }
+
+  Future<void> _batchDelete() async {
+    if (_batchIds.isEmpty) {
+      _batchHint();
+      return;
+    }
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('批量删除'),
+        content: Text('确定删除选中的 ${_batchIds.length} 条计划吗？'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Fx.tap();
+              Navigator.pop(ctx, false);
+            },
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Fx.tap();
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final ids = _batchIds.toList();
+    final toRemove = _data.tasks.where((x) => ids.contains(x.id)).toList();
+    for (final t in toRemove) {
+      for (final img in t.images) {
+        final stillUsed = _data.dayImages.values.any((l) => l.contains(img)) ||
+            _data.imageDaily.containsKey(img) ||
+            _data.tasks.any((x) => !ids.contains(x.id) && x.images.contains(img));
+        if (!stillUsed) {
+          await ImageStore.delete(img);
+        }
+      }
+      await ReminderService.instance.cancelForTask(t);
+    }
+    setState(() {
+      _data.tasks.removeWhere((x) => ids.contains(x.id));
+      _data.done.forEach((_, m) => ids.forEach(m.remove));
+      _batchIds.clear();
+    });
+    await _save();
   }
 
   Widget _headerShortcut(IconData icon, String label, VoidCallback onTap) {
@@ -463,6 +651,7 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             _buildHeader(),
             _buildSearch(),
+            if (_batchMode) _buildBatchBar(tasks),
             _buildImageArea(),
             Expanded(
               child: tasks.isEmpty
@@ -524,6 +713,8 @@ class _MainScreenState extends State<MainScreen> {
                     _headerShortcut(
                         Icons.event_note, '课表', _openTimetable),
                     _headerShortcut(Icons.music_note, '音乐', _openMusic),
+                    _headerShortcut(
+                        Icons.sticky_note_2_outlined, '便签', _openNotes),
                   ],
                 ),
                 if (!_isToday)
@@ -562,24 +753,93 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildSearch() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: TextField(
-        onChanged: (v) => setState(() => _query = v.trim()),
-        decoration: InputDecoration(
-          hintText: '搜索计划…',
-          prefixIcon: Icon(Icons.search, color: T.t.hint),
-          suffixIcon: _query.isEmpty
-              ? null
-              : IconButton(
-                  icon: Icon(Icons.clear, color: T.t.hint),
-                  onPressed: () => setState(() => _query = ''),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              onChanged: (v) => setState(() => _query = v.trim()),
+              decoration: InputDecoration(
+                hintText: '搜索计划…',
+                prefixIcon: Icon(Icons.search, color: T.t.hint),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: Icon(Icons.clear, color: T.t.hint),
+                        onPressed: () => setState(() => _query = ''),
+                      ),
+                filled: true,
+                fillColor: T.t.card,
+                contentPadding: const EdgeInsets.symmetric(vertical: 2),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
                 ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 2),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+              ),
+            ),
           ),
+          IconButton(
+            onPressed: _shareToday,
+            tooltip: '分享今日计划',
+            icon: Icon(Icons.share_outlined, size: 20, color: T.t.primary),
+          ),
+          IconButton(
+            onPressed: _enterBatchMode,
+            tooltip: '批量编辑',
+            icon: Icon(Icons.checklist, size: 20, color: T.t.primary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBatchBar(List<Task> tasks) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: T.t.card,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            Text(
+              '已选 ${_batchIds.length} 项',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: T.t.text),
+            ),
+            const SizedBox(width: 4),
+            TextButton(
+              onPressed: () => _selectAllVisible(tasks),
+              child: const Text('全选', style: TextStyle(fontSize: 13)),
+            ),
+            TextButton.icon(
+              onPressed: _batchColor,
+              icon: const Icon(Icons.palette_outlined, size: 16),
+              label: const Text('颜色', style: TextStyle(fontSize: 13)),
+            ),
+            TextButton.icon(
+              onPressed: _batchPin,
+              icon: const Icon(Icons.push_pin_outlined, size: 16),
+              label: const Text('置顶', style: TextStyle(fontSize: 13)),
+            ),
+            TextButton.icon(
+              onPressed: _batchDelete,
+              icon: const Icon(Icons.delete_outline,
+                  size: 16, color: Color(0xFFE53935)),
+              label: const Text('删除',
+                  style:
+                      TextStyle(fontSize: 13, color: Color(0xFFE53935))),
+            ),
+            IconButton(
+              onPressed: _exitBatchMode,
+              tooltip: '完成',
+              icon: Icon(Icons.check, size: 20, color: T.t.primary),
+            ),
+          ],
         ),
       ),
     );
@@ -729,6 +989,7 @@ class _MainScreenState extends State<MainScreen> {
 
   Widget _buildTaskTile(Task t, String ds) {
     final done = _data.isDone(t.id, ds);
+    final selected = _batchIds.contains(t.id);
     final color = done ? const Color(0xFF9AA9B3) : colorFromHex(t.color);
     final timeText = formatTimePeriod(t.timeStart, t.timeEnd);
     return Container(
@@ -746,17 +1007,24 @@ class _MainScreenState extends State<MainScreen> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        onTap: () => _openTaskDialog(t),
-        onLongPress: () => _showTaskMenu(t),
+        onTap: _batchMode
+            ? () => _toggleBatchSelect(t.id)
+            : () => _openTaskDialog(t),
+        onLongPress: _batchMode
+            ? () => _toggleBatchSelect(t.id)
+            : () => _showTaskMenu(t),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
           child: Row(
             children: [
-              _CheckCircle(
-                done: done,
-                color: colorFromHex(t.color),
-                onTap: () => _toggleDone(t, !done),
-              ),
+              if (_batchMode)
+                _BatchCheck(selected: selected, onTap: () => _toggleBatchSelect(t.id))
+              else
+                _CheckCircle(
+                  done: done,
+                  color: colorFromHex(t.color),
+                  onTap: () => _toggleDone(t, !done),
+                ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -799,14 +1067,44 @@ class _MainScreenState extends State<MainScreen> {
                 const Icon(Icons.push_pin, size: 18, color: Color(0xFFF5A623)),
                 const SizedBox(width: 4),
               ],
-              IconButton(
-                icon: Icon(Icons.more_vert,
-                    size: 20, color: T.t.hint),
-                onPressed: () => _showTaskMenu(t),
-              ),
+              if (!_batchMode)
+                IconButton(
+                  icon: Icon(Icons.more_vert, size: 20, color: T.t.hint),
+                  onPressed: () => _showTaskMenu(t),
+                ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BatchCheck extends StatelessWidget {
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _BatchCheck({required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? T.t.primary : Colors.white,
+          border: Border.all(
+            color: selected ? T.t.primary : T.t.borderSoft,
+            width: 2,
+          ),
+        ),
+        child: selected
+            ? const Icon(Icons.check, size: 22, color: Colors.white)
+            : null,
       ),
     );
   }
