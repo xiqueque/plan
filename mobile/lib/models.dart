@@ -131,6 +131,7 @@ class Task {
 class PlanData {
   Map<String, dynamic> settings;
   List<Task> tasks;
+  List<Course> timetable;
   Map<String, Map<String, bool>> done; // date -> {taskId: true}
   Map<String, Map<String, String>> reminded;
   Map<String, List<String>> dayImages;
@@ -141,6 +142,7 @@ class PlanData {
   PlanData({
     Map<String, dynamic>? settings,
     List<Task>? tasks,
+    List<Course>? timetable,
     Map<String, Map<String, bool>>? done,
     Map<String, Map<String, String>>? reminded,
     Map<String, List<String>>? dayImages,
@@ -149,6 +151,7 @@ class PlanData {
     String? notes,
   })  : settings = settings ?? {'cleanup_days': 0, 'sound_volume': 12},
         tasks = tasks ?? [],
+        timetable = timetable ?? [],
         done = done ?? {},
         reminded = reminded ?? {},
         dayImages = dayImages ?? {},
@@ -161,6 +164,10 @@ class PlanData {
       settings: Map<String, dynamic>.from((j['settings'] as Map?) ?? {}),
       tasks: (j['tasks'] as List?)
               ?.map((e) => Task.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      timetable: (j['timetable'] as List?)
+              ?.map((e) => Course.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       done: _doneFromJson(j['done']),
@@ -176,6 +183,7 @@ class PlanData {
   Map<String, dynamic> toJson() => {
         'settings': settings,
         'tasks': tasks.map((t) => t.toJson()).toList(),
+        'timetable': timetable.map((c) => c.toJson()).toList(),
         'done': done,
         'reminded': reminded,
         'day_images': dayImages,
@@ -200,6 +208,49 @@ class PlanData {
       done[dateStr]?.remove(taskId);
     }
   }
+}
+
+/// 一周课程表里的一门课。
+class Course {
+  String id;
+  int weekday; // 0=周一 … 6=周日
+  String name;
+  String timeStart; // HH:mm
+  String timeEnd; // HH:mm
+  String color;
+  String room;
+
+  Course({
+    required this.id,
+    required this.weekday,
+    required this.name,
+    required this.timeStart,
+    required this.timeEnd,
+    this.color = '#1F3A4D',
+    this.room = '',
+  });
+
+  factory Course.fromJson(Map<String, dynamic> j) {
+    return Course(
+      id: (j['id'] ?? '').toString(),
+      weekday: (j['weekday'] as num?)?.toInt() ?? 0,
+      name: (j['name'] ?? '').toString(),
+      timeStart: (j['time_start'] ?? '').toString(),
+      timeEnd: (j['time_end'] ?? '').toString(),
+      color: (j['color'] ?? '#1F3A4D').toString(),
+      room: (j['room'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'weekday': weekday,
+        'name': name,
+        'time_start': timeStart,
+        'time_end': timeEnd,
+        'color': color,
+        'room': room,
+      };
 }
 
 /// 排序：置顶优先（按置顶时间），其余按时段、创建时间。

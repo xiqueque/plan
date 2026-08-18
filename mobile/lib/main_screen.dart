@@ -8,11 +8,13 @@ import 'app_theme.dart';
 import 'fx.dart';
 import 'image_store.dart';
 import 'models.dart';
+import 'music_page.dart';
 import 'reminder_service.dart';
 import 'settings_page.dart';
 import 'storage.dart';
 import 'task_dialog.dart';
 import 'theme.dart';
+import 'timetable_page.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -127,6 +129,38 @@ class _MainScreenState extends State<MainScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => SettingsPage(data: _data, onChanged: () => _save()),
+      ),
+    );
+  }
+
+  Future<void> _openTimetable() async {
+    Fx.tap();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TimetablePage(data: _data, onChanged: () => _save()),
+      ),
+    );
+  }
+
+  Future<void> _openMusic() async {
+    Fx.tap();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const MusicPage()),
+    );
+  }
+
+  Widget _headerShortcut(IconData icon, String label, VoidCallback onTap) {
+    return TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 15, color: T.t.primary),
+      label: Text(label,
+          style: TextStyle(fontSize: 12, color: T.t.hint)),
+      style: TextButton.styleFrom(
+        minimumSize: const Size(0, 26),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }
@@ -482,19 +516,15 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: _openCalendar,
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(0, 26),
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: Icon(Icons.calendar_month,
-                      size: 15, color: T.t.primary),
-                  label: Text(
-                    '日历',
-                    style: TextStyle(fontSize: 12, color: T.t.hint),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _headerShortcut(
+                        Icons.calendar_month, '日历', _openCalendar),
+                    _headerShortcut(
+                        Icons.event_note, '课表', _openTimetable),
+                    _headerShortcut(Icons.music_note, '音乐', _openMusic),
+                  ],
                 ),
                 if (!_isToday)
                   TextButton(
