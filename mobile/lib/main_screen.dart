@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import 'calendar_page.dart';
 import 'fx.dart';
 import 'models.dart';
+import 'reminder_service.dart';
 import 'storage.dart';
 import 'task_dialog.dart';
 
@@ -33,6 +35,8 @@ class _MainScreenState extends State<MainScreen> {
       _data = d;
       _loaded = true;
     });
+    await ReminderService.instance.init();
+    await ReminderService.instance.rescheduleAll(_data);
   }
 
   Future<void> _save() => Storage.save(_data);
@@ -79,6 +83,20 @@ class _MainScreenState extends State<MainScreen> {
       }
     });
     await _save();
+    await ReminderService.instance.scheduleForTask(result);
+  }
+
+  Future<void> _openCalendar() async {
+    Fx.tap();
+    final picked = await Navigator.push<DateTime>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CalendarPage(initial: _date, data: _data),
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() => _date = picked);
+    }
   }
 
   Future<void> _toggleDone(Task t, bool value) async {
@@ -195,6 +213,7 @@ class _MainScreenState extends State<MainScreen> {
       _data.done.forEach((_, m) => m.remove(t.id));
     });
     await _save();
+    await ReminderService.instance.cancelForTask(t);
   }
 
   @override
@@ -253,12 +272,34 @@ class _MainScreenState extends State<MainScreen> {
           Expanded(
             child: Column(
               children: [
-                Text(
-                  '${_date.month}月${_date.day}日 ${_weekdayNames[_date.weekday - 1]}',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F3A4D),
+                InkWell(
+                  onTap: _openCalendar,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
+                    child: Text(
+                      '${_date.month}月${_date.day}日 ${_weekdayNames[_date.weekday - 1]}',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1F3A4D),
+                      ),
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _openCalendar,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 26),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.calendar_month,
+                      size: 15, color: Color(0xFF7FB8D4)),
+                  label: const Text(
+                    '日历',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF6B8CA3)),
                   ),
                 ),
                 if (!_isToday)
@@ -275,7 +316,7 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                   )
                 else
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
               ],
             ),
           ),

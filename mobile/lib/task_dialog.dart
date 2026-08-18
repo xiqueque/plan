@@ -17,6 +17,10 @@ class _TaskDialogState extends State<TaskDialog> {
   late final TextEditingController _textCtrl;
   late String _color;
   late bool _isDaily;
+  late bool _reminderOn;
+  late String _reminderMode; // once=当天提醒, daily=每天提醒
+  TimeOfDay? _reminderTime;
+  late Set<int> _reminderWeekdays; // 0=周一 … 6=周日
   TimeOfDay? _start;
   TimeOfDay? _end;
 
@@ -27,6 +31,11 @@ class _TaskDialogState extends State<TaskDialog> {
     _textCtrl = TextEditingController(text: t?.text ?? '');
     _color = t?.color ?? '#1F3A4D';
     _isDaily = t?.isDaily ?? false;
+    _reminderOn = (t?.reminderMode ?? 'none') != 'none';
+    _reminderMode = t?.reminderMode == 'daily' ? 'daily' : 'once';
+    _reminderTime = _parseTime(t?.reminderTime);
+    _reminderWeekdays = (t?.reminderWeekdays ?? List.generate(7, (i) => i))
+        .toSet();
     _start = _parseTime(t?.timeStart);
     _end = _parseTime(t?.timeEnd);
   }
@@ -57,6 +66,18 @@ class _TaskDialogState extends State<TaskDialog> {
         _end = picked;
       }
     });
+  }
+
+  Future<void> _pickReminderTime() async {
+    Fx.tap();
+    final picked = await showTimePicker(
+      context: context,
+      initialTime:
+          _reminderTime ?? _start ?? const TimeOfDay(hour: 9, minute: 0),
+    );
+    if (picked != null) {
+      setState(() => _reminderTime = picked);
+    }
   }
 
   @override
@@ -104,6 +125,101 @@ class _TaskDialogState extends State<TaskDialog> {
               ],
             ),
             const SizedBox(height: 14),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('到点提醒'),
+              subtitle: Text(_reminderOn
+                  ? (_reminderMode == 'daily' ? '每天提醒' : '当天提醒')
+                  : '关闭'),
+              value: _reminderOn,
+              onChanged: (v) {
+                Fx.tap();
+                setState(() {
+                  _reminderOn = v;
+                  if (v) {
+                    _reminderMode = _isDaily ? 'daily' : 'once';
+                    _reminderTime ??= _start ?? const TimeOfDay(hour: 9, minute: 0);
+                  }
+                });
+              },
+            ),
+            if (_reminderOn) ...[
+              const SizedBox(height: 4),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'once', label: Text('当天提醒')),
+                  ButtonSegment(value: 'daily', label: Text('每天提醒')),
+                ],
+                selected: {_reminderMode},
+                showSelectedIcon: false,
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                ),
+                onSelectionChanged: (s) {
+                  Fx.tap();
+                  setState(() {
+                    _reminderMode = s.first;
+                    if (_reminderMode == 'daily') {
+                      _isDaily = true;
+                      if (_reminderWeekdays.isEmpty) {
+                        _reminderWeekdays = {0, 1, 2, 3, 4, 5, 6};
+                      }
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 10),
+              _TimeButton(
+                label: _reminderTime == null ? '提醒时间' : _fmt(_reminderTime),
+                onTap: _pickReminderTime,
+                onClear: _reminderTime == null
+                    ? null
+                    : () => setState(() => _reminderTime = null),
+              ),
+              if (_reminderMode == 'daily') ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const Text('提醒日',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        Fx.tap();
+                        setState(() => _reminderWeekdays = {0, 1, 2, 3, 4, 5, 6});
+                      },
+                      child: const Text('全选'),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Fx.tap();
+                        setState(() => _reminderWeekdays = {0, 1, 2, 3, 4});
+                      },
+                      child: const Text('工作日'),
+                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: List.generate(7, (i) => _WeekdayChip(
+                        index: i,
+                        selected: _reminderWeekdays.contains(i),
+                        onTap: () {
+                          Fx.tap();
+                          setState(() {
+                            if (_reminderWeekdays.contains(i)) {
+                              _reminderWeekdays.remove(i);
+                            } else {
+                              _reminderWeekdays.add(i);
+                            }
+                          });
+                        },
+                      )),
+                ),
+              ],
+            ],
+            const SizedBox(height: 14),
             const Text('颜色', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Wrap(
@@ -129,7 +245,18 @@ class _TaskDialogState extends State<TaskDialog> {
               value: _isDaily,
               onChanged: (v) {
                 Fx.tap();
-                setState(() => _isDaily = v);
+                setState(() {
+                  _isDaily = v;
+                  if (v) {
+                    _reminderOn = true;
+                    _reminderMode = 'daily';
+                    if (_reminderWeekdays.isEmpty) {
+                      _reminderWeekdays = {0, 1, 2, 3, 4, 5, 6};
+                    }
+                  } else if (_reminderMode == 'daily') {
+                    _reminderMode = 'once';
+                  }
+                });
               },
             ),
           ],
@@ -165,6 +292,7 @@ class _TaskDialogState extends State<TaskDialog> {
     final old = widget.task;
     final start = _fmt(_start);
     final end = _fmt(_end);
+    final reminderTime = _fmt(_reminderTime);
     final task = Task(
       id: old?.id ?? newTaskId(),
       text: text,
@@ -174,11 +302,11 @@ class _TaskDialogState extends State<TaskDialog> {
               '${widget.date.day.toString().padLeft(2, '0')}',
       timeStart: start.isEmpty ? null : start,
       timeEnd: end.isEmpty ? null : end,
-      isDaily: _isDaily,
+      isDaily: _isDaily || (_reminderOn && _reminderMode == 'daily'),
       color: _color,
-      reminderMode: _isDaily ? 'daily' : (old?.reminderMode ?? 'none'),
-      reminderTime: old?.reminderTime,
-      reminderWeekdays: old?.reminderWeekdays,
+      reminderMode: _reminderOn ? _reminderMode : 'none',
+      reminderTime: _reminderOn && reminderTime.isNotEmpty ? reminderTime : null,
+      reminderWeekdays: _reminderWeekdays.toList()..sort(),
       images: old?.images ?? [],
       pinned: old?.pinned ?? false,
       pinnedAt: old?.pinnedAt,
@@ -287,6 +415,48 @@ class _ColorChip extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WeekdayChip extends StatelessWidget {
+  final int index; // 0=周一 … 6=周日
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _WeekdayChip({
+    required this.index,
+    required this.selected,
+    required this.onTap,
+  });
+
+  static const _names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        width: 42,
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF7FB8D4) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? const Color(0xFF7FB8D4) : const Color(0xFFD5E8F2),
+          ),
+        ),
+        child: Text(
+          _names[index],
+          style: TextStyle(
+            fontSize: 12,
+            color: selected ? Colors.white : const Color(0xFF1F3A4D),
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
       ),
     );
