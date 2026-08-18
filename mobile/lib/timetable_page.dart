@@ -4,7 +4,7 @@ import 'fx.dart';
 import 'models.dart';
 import 'theme.dart';
 
-/// 课表：网格视图（时间列 + 周一~周日 7 列），可增删改。
+/// 课表：按周一~周日分块，直接显示每天的课程。
 class TimetablePage extends StatefulWidget {
   final PlanData data;
   final VoidCallback onChanged;
@@ -17,44 +17,27 @@ class TimetablePage extends StatefulWidget {
 
 class _TimetablePageState extends State<TimetablePage> {
   static const _dayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-  static const _colWidth = 66.0;
-  static const _timeColWidth = 58.0;
 
-  List<(String, String)> get _timeRanges {
-    final ranges = <(String, String)>[];
-    final list = widget.data.timetable.toList()
-      ..sort((a, b) => a.timeStart.compareTo(b.timeStart));
-    for (final c in list) {
-      if (!ranges.any((r) => r.$1 == c.timeStart && r.$2 == c.timeEnd)) {
-        ranges.add((c.timeStart, c.timeEnd));
-      }
-    }
-    return ranges;
-  }
-
-  List<Course> _coursesAt((String, String) range, int weekday) {
-    return widget.data.timetable
-        .where((c) =>
-            c.weekday == weekday &&
-            c.timeStart == range.$1 &&
-            c.timeEnd == range.$2)
+  /// 某天的课程：有时间先按开始时间排，没时间的排后面（保持添加顺序）。
+  List<Course> _coursesOf(int weekday) {
+    final list = widget.data.timetable
+        .where((c) => c.weekday == weekday)
         .toList();
+    final indexed = list.asMap().entries.toList();
+    indexed.sort((a, b) {
+      final ta = a.value.timeStart ?? '';
+      final tb = b.value.timeStart ?? '';
+      if (ta.isEmpty != tb.isEmpty) return ta.isEmpty ? 1 : -1;
+      if (ta != tb) return ta.compareTo(tb);
+      return a.key.compareTo(b.key);
+    });
+    return indexed.map((e) => e.value).toList();
   }
 
-  Future<void> _openCourseDialog({
-    Course? course,
-    int? initialWeekday,
-    String? initialStart,
-    String? initialEnd,
-  }) async {
+  Future<void> _openCourseDialog([Course? course]) async {
     final result = await showDialog<Object>(
       context: context,
-      builder: (_) => CourseDialog(
-        course: course,
-        initialWeekday: initialWeekday,
-        initialStart: initialStart,
-        initialEnd: initialEnd,
-      ),
+      builder: (_) => CourseDialog(course: course),
     );
     if (result == null) return;
     if (result == 'delete' && course != null) {
@@ -129,215 +112,129 @@ class _TimetablePageState extends State<TimetablePage> {
           ),
         ],
       ),
-      body: widget.data.timetable.isEmpty ? _buildEmpty() : _buildGrid(),
-    );
-  }
-
-  Widget _buildEmpty() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
-          const Text('🗓️', style: TextStyle(fontSize: 56)),
-          const SizedBox(height: 12),
-          Text('还没有课程~\n点右上角 ＋ 添加，或点网格空白处直接加',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: T.t.hint, height: 1.6)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGrid() {
-    final now = DateTime.now();
-    final todayIdx = now.weekday - 1;
-    final ranges = _timeRanges;
-    final totalWidth = _timeColWidth + 7 * _colWidth;
-
-    return LayoutBuilder(
-      builder: (ctx, cons) => SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SizedBox(
-          width: totalWidth,
-          height: cons.maxHeight,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildDayHeader(todayIdx),
-                const SizedBox(height: 4),
-                ...ranges.map((r) => _buildTimeRow(r, todayIdx)),
-                const SizedBox(height: 12),
-              ],
+          for (var d = 0; d < 7; d++) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 6),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: T.t.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _dayNames[d],
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _coursesOf(d).isEmpty ? '' : '${_coursesOf(d).length} 节',
+                    style: TextStyle(fontSize: 12, color: T.t.hint),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDayHeader(int todayIdx) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(width: _timeColWidth),
-        ...List.generate(7, (d) {
-          final isToday = d == todayIdx;
-          return Container(
-            width: _colWidth,
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Center(
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            if (_coursesOf(d).isEmpty)
+              Container(
+                margin: const EdgeInsets.only(bottom: 2),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: isToday ? T.t.primary : Colors.transparent,
+                  color: T.t.card,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  _dayNames[d],
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: isToday ? Colors.white : T.t.hint,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildTimeRow((String, String) range, int todayIdx) {
-    final cells = List.generate(7, (d) => _coursesAt(range, d));
-    final maxCount = cells.fold(1, (m, l) => l.length > m ? l.length : m);
-    final rowH = 56 + (maxCount - 1) * 40.0;
-    final cardH = maxCount == 1
-        ? rowH - 14
-        : (rowH - 10 - (maxCount - 1) * 6) / maxCount;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: T.t.card,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            width: _timeColWidth - 4,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  range.$1,
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: T.t.text),
-                ),
-                Text(
-                  range.$2,
-                  style: TextStyle(fontSize: 10, color: T.t.hint),
-                ),
-              ],
-            ),
-          ),
-          ...List.generate(7, (d) {
-            final list = cells[d];
-            return Container(
-              width: _colWidth,
-              height: rowH,
-              padding: const EdgeInsets.all(3),
-              child: list.isEmpty
-                  ? InkWell(
-                      onTap: () => _openCourseDialog(
-                        initialWeekday: d,
-                        initialStart: range.$1,
-                        initialEnd: range.$2,
-                      ),
-                      borderRadius: BorderRadius.circular(9),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: T.t.bg,
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                      ),
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (final c in list) _buildMiniCard(c, cardH),
-                      ],
-                    ),
-            );
-          }),
+                child: Text('这天没课',
+                    style: TextStyle(fontSize: 13, color: T.t.hint)),
+              )
+            else
+              ..._coursesOf(d).map((c) => _buildCourseTile(c)),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildMiniCard(Course c, double height) {
+  Widget _buildCourseTile(Course c) {
     final color = colorFromHex(c.color);
-    return GestureDetector(
-      onTap: () => _openCourseDialog(course: c),
-      onLongPress: () => _deleteCourse(c),
-      child: Container(
-        height: height,
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: color.withValues(alpha: 0.45), width: 1),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              c.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                color: color,
-                height: 1.2,
+    final time = _timeText(c);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: T.t.card,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _openCourseDialog(c),
+        onLongPress: () => _deleteCourse(c),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 5,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(3),
+                ),
               ),
-            ),
-            if (c.room.isNotEmpty && height > 30)
-              Text(
-                c.room,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 8, color: T.t.hint),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: T.t.text,
+                      ),
+                    ),
+                    if (time.isNotEmpty || c.room.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        [time, c.room].where((s) => s.isNotEmpty).join(' · '),
+                        style: TextStyle(fontSize: 12, color: T.t.hint),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-          ],
+              IconButton(
+                icon: const Icon(Icons.delete_outline,
+                    size: 18, color: Color(0xFFE53935)),
+                onPressed: () => _deleteCourse(c),
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  String _timeText(Course c) {
+    if (c.timeStart == null || c.timeStart!.isEmpty) return '';
+    if (c.timeEnd == null || c.timeEnd!.isEmpty) return c.timeStart!;
+    return '${c.timeStart} – ${c.timeEnd}';
   }
 }
 
 class CourseDialog extends StatefulWidget {
   final Course? course;
-  final int? initialWeekday;
-  final String? initialStart;
-  final String? initialEnd;
 
-  const CourseDialog({
-    super.key,
-    this.course,
-    this.initialWeekday,
-    this.initialStart,
-    this.initialEnd,
-  });
+  const CourseDialog({super.key, this.course});
 
   @override
   State<CourseDialog> createState() => _CourseDialogState();
@@ -359,10 +256,10 @@ class _CourseDialogState extends State<CourseDialog> {
     final c = widget.course;
     _nameCtrl = TextEditingController(text: c?.name ?? '');
     _roomCtrl = TextEditingController(text: c?.room ?? '');
-    _weekday = c?.weekday ?? widget.initialWeekday ?? 0;
+    _weekday = c?.weekday ?? 0;
     _color = c?.color ?? '#1F3A4D';
-    _start = _parse(c?.timeStart) ?? _parse(widget.initialStart);
-    _end = _parse(c?.timeEnd) ?? _parse(widget.initialEnd);
+    _start = _parse(c?.timeStart);
+    _end = _parse(c?.timeEnd);
   }
 
   TimeOfDay? _parse(String? s) {
@@ -401,14 +298,6 @@ class _CourseDialogState extends State<CourseDialog> {
       );
       return;
     }
-    final start = _fmt(_start);
-    final end = _fmt(_end);
-    if (start.isEmpty || end.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请选择开始和结束时间')),
-      );
-      return;
-    }
     final old = widget.course;
     Navigator.pop(
       context,
@@ -416,8 +305,8 @@ class _CourseDialogState extends State<CourseDialog> {
         id: old?.id ?? newTaskId(),
         weekday: _weekday,
         name: name,
-        timeStart: start,
-        timeEnd: end,
+        timeStart: _fmt(_start).isEmpty ? null : _fmt(_start),
+        timeEnd: _fmt(_end).isEmpty ? null : _fmt(_end),
         color: _color,
         room: _roomCtrl.text.trim(),
       ),
@@ -469,7 +358,7 @@ class _CourseDialogState extends State<CourseDialog> {
               children: [
                 Expanded(
                   child: _TimeBtn(
-                    label: _start == null ? '开始' : _fmt(_start),
+                    label: _start == null ? '开始时间（选填）' : _fmt(_start),
                     onTap: () => _pick(true),
                     onClear: _start == null
                         ? null
@@ -479,7 +368,7 @@ class _CourseDialogState extends State<CourseDialog> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _TimeBtn(
-                    label: _end == null ? '结束' : _fmt(_end),
+                    label: _end == null ? '结束时间（选填）' : _fmt(_end),
                     onTap: () => _pick(false),
                     onClear: _end == null
                         ? null
@@ -571,10 +460,13 @@ class _TimeBtn extends StatelessWidget {
           children: [
             Icon(Icons.schedule, size: 16, color: T.t.text),
             const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                  color: T.t.text, fontWeight: FontWeight.w600),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: T.t.text, fontWeight: FontWeight.w600),
+              ),
             ),
             if (onClear != null) ...[
               const SizedBox(width: 4),

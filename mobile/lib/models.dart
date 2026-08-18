@@ -215,8 +215,8 @@ class Course {
   String id;
   int weekday; // 0=周一 … 6=周日
   String name;
-  String timeStart; // HH:mm
-  String timeEnd; // HH:mm
+  String? timeStart; // HH:mm，可空
+  String? timeEnd; // HH:mm，可空
   String color;
   String room;
 
@@ -224,8 +224,8 @@ class Course {
     required this.id,
     required this.weekday,
     required this.name,
-    required this.timeStart,
-    required this.timeEnd,
+    this.timeStart,
+    this.timeEnd,
     this.color = '#1F3A4D',
     this.room = '',
   });
@@ -235,8 +235,8 @@ class Course {
       id: (j['id'] ?? '').toString(),
       weekday: (j['weekday'] as num?)?.toInt() ?? 0,
       name: (j['name'] ?? '').toString(),
-      timeStart: (j['time_start'] ?? '').toString(),
-      timeEnd: (j['time_end'] ?? '').toString(),
+      timeStart: j['time_start']?.toString(),
+      timeEnd: j['time_end']?.toString(),
       color: (j['color'] ?? '#1F3A4D').toString(),
       room: (j['room'] ?? '').toString(),
     );
