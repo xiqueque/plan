@@ -16,25 +16,39 @@ class _MusicPageState extends State<MusicPage> {
   final TextEditingController _ctrl = TextEditingController();
   String _query = '';
 
-  static const _platforms = [
-    _Platform('网易云音乐', '🎵', Color(0xFFD33A31), _urlNetease),
-    _Platform('QQ音乐', '🐧', Color(0xFF31C27C), _urlQQ),
-    _Platform('酷狗音乐', '🎤', Color(0xFF2C9BFF), _urlKugou),
-    _Platform('哔哩哔哩', '📺', Color(0xFFFB7299), _urlBili),
-    _Platform('抖音', '🎬', Color(0xFF161823), _urlDouyin),
-  ];
-
-  static String _urlNetease(String q) =>
-      'https://music.163.com/#/search/m/?s=${Uri.encodeComponent(q)}';
-  static String _urlQQ(String q) =>
-      'https://y.qq.com/n/ryqq/search?w=${Uri.encodeComponent(q)}';
-  static String _urlKugou(String q) =>
+  static final _platforms = [
+    _Platform(
+      '网易云音乐',
+      const _LogoNetease(),
+      'orpheus://search/',
+      'https://music.163.com/#/search/m/?s=',
+    ),
+    _Platform(
+      'QQ音乐',
+      const _LogoQQ(),
+      'qqmusic://search?key=',
+      'https://y.qq.com/n/ryqq/search?w=',
+    ),
+    _Platform(
+      '酷狗音乐',
+      const _LogoKugou(),
+      'kugou://search/keyword=',
       'https://www.kugou.com/yy/html/search.html'
-      '#searchType=song&searchKeyWord=${Uri.encodeComponent(q)}';
-  static String _urlBili(String q) =>
-      'https://search.bilibili.com/all?keyword=${Uri.encodeComponent(q)}';
-  static String _urlDouyin(String q) =>
-      'https://www.douyin.com/search/${Uri.encodeComponent(q)}';
+          '#searchType=song&searchKeyWord=',
+    ),
+    _Platform(
+      '哔哩哔哩',
+      const _LogoBili(),
+      'bilibili://search/',
+      'https://search.bilibili.com/all?keyword=',
+    ),
+    _Platform(
+      '抖音',
+      const _LogoDouyin(),
+      'snssdk1128://search?keyword=',
+      'https://www.douyin.com/search/',
+    ),
+  ];
 
   Future<void> _open(_Platform p) async {
     final q = _query.trim();
@@ -45,23 +59,33 @@ class _MusicPageState extends State<MusicPage> {
       return;
     }
     Fx.tap();
+    final encoded = Uri.encodeComponent(q);
+    // 优先用 App 专属协议直跳，失败再退回网页（浏览器打开）
+    final schemeUri = Uri.parse('${p.scheme}$encoded');
     try {
-      final ok = await launchUrl(
-        Uri.parse(p.url(q)),
-        mode: LaunchMode.externalApplication,
-      );
+      if (await canLaunchUrl(schemeUri)) {
+        await launchUrl(schemeUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (_) {
+      // 继续尝试网页
+    }
+    try {
+      final webUri = Uri.parse('${p.web}$encoded');
+      final ok =
+          await launchUrl(webUri, mode: LaunchMode.externalApplication);
       if (!ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('没有找到可打开的 App，试试浏览器')),
-        );
+        _hint('打开失败，请检查 ${p.name} 是否安装');
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('打开失败，请稍后再试')),
-        );
+        _hint('打开失败，请稍后再试');
       }
     }
+  }
+
+  void _hint(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -93,15 +117,10 @@ class _MusicPageState extends State<MusicPage> {
           TextField(
             controller: _ctrl,
             onChanged: (v) => setState(() => _query = v),
-            onSubmitted: (_) {},
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               hintText: '搜歌名，如：红色高跟鞋',
               prefixIcon: Icon(Icons.search, color: T.t.hint),
-              suffixIcon: IconButton(
-                icon: Icon(Icons.arrow_forward, color: T.t.primary),
-                onPressed: () {},
-              ),
               filled: true,
               fillColor: T.t.card,
               border: OutlineInputBorder(
@@ -136,11 +155,11 @@ class _MusicPageState extends State<MusicPage> {
 
 class _Platform {
   final String name;
-  final String emoji;
-  final Color color;
-  final String Function(String) url;
+  final Widget logo;
+  final String scheme;
+  final String web;
 
-  const _Platform(this.name, this.emoji, this.color, this.url);
+  const _Platform(this.name, this.logo, this.scheme, this.web);
 }
 
 class _PlatformTile extends StatelessWidget {
@@ -166,16 +185,7 @@ class _PlatformTile extends StatelessWidget {
       child: ListTile(
         onTap: onTap,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        leading: Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: platform.color,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(platform.emoji, style: const TextStyle(fontSize: 20)),
-        ),
+        leading: SizedBox(width: 42, height: 42, child: platform.logo),
         title: Text(
           platform.name,
           style: TextStyle(
@@ -186,6 +196,89 @@ class _PlatformTile extends StatelessWidget {
           style: TextStyle(fontSize: 12, color: T.t.hint),
         ),
         trailing: Icon(Icons.open_in_new, size: 18, color: T.t.hint),
+      ),
+    );
+  }
+}
+
+/// 各品牌真实配色的 Logo（简化版，保证一眼认出）。
+class _LogoNetease extends StatelessWidget {
+  const _LogoNetease();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFD33A31),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.music_note, color: Colors.white, size: 26),
+    );
+  }
+}
+
+class _LogoQQ extends StatelessWidget {
+  const _LogoQQ();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF31C27C),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.music_note, color: Colors.white, size: 26),
+    );
+  }
+}
+
+class _LogoKugou extends StatelessWidget {
+  const _LogoKugou();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C9BFF),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.music_note, color: Colors.white, size: 26),
+    );
+  }
+}
+
+class _LogoBili extends StatelessWidget {
+  const _LogoBili();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFB7299),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: const Icon(Icons.tv, color: Colors.white, size: 24),
+    );
+  }
+}
+
+class _LogoDouyin extends StatelessWidget {
+  const _LogoDouyin();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF161823),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ShaderMask(
+        shaderCallback: (rect) => const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF25F4EE), Color(0xFFFE2C55)],
+        ).createShader(rect),
+        child: const Icon(Icons.music_note, color: Colors.white, size: 26),
       ),
     );
   }

@@ -342,13 +342,12 @@ class _MainScreenState extends State<MainScreen> {
   Widget _headerShortcut(IconData icon, String label, VoidCallback onTap) {
     return TextButton.icon(
       onPressed: onTap,
-      icon: Icon(icon, size: 15, color: T.t.primary),
+      icon: Icon(icon, size: 16, color: T.t.primary),
       label: Text(label,
-          style: TextStyle(fontSize: 12, color: T.t.hint)),
+          style: TextStyle(fontSize: 13, color: T.t.hint)),
       style: TextButton.styleFrom(
-        minimumSize: const Size(0, 26),
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        visualDensity: VisualDensity.compact,
+        minimumSize: const Size(64, 34),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
       ),
     );
   }
@@ -678,72 +677,75 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildHeader() {
     final now = DateTime.now();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(8, 12, 8, 6),
+      child: Column(
         children: [
-          IconButton(
-            onPressed: () => _shiftDay(-1),
-            icon: const Icon(Icons.chevron_left, size: 32),
-            color: T.t.text,
-          ),
-          Expanded(
-            child: Column(
-              children: [
-                InkWell(
-                  onTap: _openCalendar,
-                  borderRadius: BorderRadius.circular(10),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
-                    child: Text(
-                      '${_date.month}月${_date.day}日 ${_weekdayNames[_date.weekday - 1]}',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: T.t.text,
+          Row(
+            children: [
+              IconButton(
+                onPressed: () => _shiftDay(-1),
+                icon: const Icon(Icons.chevron_left, size: 32),
+                color: T.t.text,
+              ),
+              Expanded(
+                child: Column(
+                  children: [
+                    InkWell(
+                      onTap: _openCalendar,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 4),
+                        child: Text(
+                          '${_date.month}月${_date.day}日 ${_weekdayNames[_date.weekday - 1]}',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: T.t.text,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _headerShortcut(
-                        Icons.calendar_month, '日历', _openCalendar),
-                    _headerShortcut(
-                        Icons.event_note, '课表', _openTimetable),
-                    _headerShortcut(Icons.music_note, '音乐', _openMusic),
-                    _headerShortcut(
-                        Icons.sticky_note_2_outlined, '便签', _openNotes),
+                    if (!_isToday)
+                      TextButton(
+                        onPressed: _goToday,
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(0, 30),
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        child: Text(
+                          '回到今天 ${now.month}月${now.day}日',
+                          style:
+                              TextStyle(fontSize: 13, color: T.t.hint),
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 6),
                   ],
                 ),
-                if (!_isToday)
-                  TextButton(
-                    onPressed: _goToday,
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(0, 30),
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    child: Text(
-                      '回到今天 ${now.month}月${now.day}日',
-                      style: TextStyle(
-                          fontSize: 13, color: T.t.hint),
-                    ),
-                  )
-                else
-                  const SizedBox(height: 4),
-              ],
-            ),
+              ),
+              IconButton(
+                onPressed: () => _shiftDay(1),
+                icon: const Icon(Icons.chevron_right, size: 32),
+                color: T.t.text,
+              ),
+              IconButton(
+                onPressed: _openSettings,
+                icon: const Icon(Icons.settings_outlined, size: 22),
+                color: T.t.hint,
+              ),
+            ],
           ),
-          IconButton(
-            onPressed: () => _shiftDay(1),
-            icon: const Icon(Icons.chevron_right, size: 32),
-            color: T.t.text,
-          ),
-          IconButton(
-            onPressed: _openSettings,
-            icon: const Icon(Icons.settings_outlined, size: 22),
-            color: T.t.hint,
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _headerShortcut(Icons.calendar_month, '日历', _openCalendar),
+              _headerShortcut(Icons.event_note, '课表', _openTimetable),
+              _headerShortcut(Icons.music_note, '音乐', _openMusic),
+              _headerShortcut(Icons.sticky_note_2_outlined, '便签', _openNotes),
+            ],
           ),
         ],
       ),
