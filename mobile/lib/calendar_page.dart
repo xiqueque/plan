@@ -53,7 +53,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Future<void> _editTask(Task task) async {
     final result = await showDialog<Task>(
       context: context,
-      builder: (_) => TaskDialog(task: task, date: _selected),
+      builder: (_) => TaskDialog(task: task, date: _selected, data: widget.data),
     );
     if (result == null) return;
     setState(() {

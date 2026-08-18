@@ -1,13 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'fx.dart';
+import 'image_store.dart';
 import 'models.dart';
 
 class TaskDialog extends StatefulWidget {
   final Task? task;
   final DateTime date;
+  final PlanData? data;
 
-  const TaskDialog({super.key, this.task, required this.date});
+  const TaskDialog({super.key, this.task, required this.date, this.data});
 
   @override
   State<TaskDialog> createState() => _TaskDialogState();
@@ -21,6 +26,7 @@ class _TaskDialogState extends State<TaskDialog> {
   late String _reminderMode; // once=当天提醒, daily=每天提醒
   TimeOfDay? _reminderTime;
   late Set<int> _reminderWeekdays; // 0=周一 … 6=周日
+  late List<String> _images;
   TimeOfDay? _start;
   TimeOfDay? _end;
 
@@ -36,6 +42,7 @@ class _TaskDialogState extends State<TaskDialog> {
     _reminderTime = _parseTime(t?.reminderTime);
     _reminderWeekdays = (t?.reminderWeekdays ?? List.generate(7, (i) => i))
         .toSet();
+    _images = List.of(t?.images ?? []);
     _start = _parseTime(t?.timeStart);
     _end = _parseTime(t?.timeEnd);
   }
@@ -78,6 +85,35 @@ class _TaskDialogState extends State<TaskDialog> {
     if (picked != null) {
       setState(() => _reminderTime = picked);
     }
+  }
+
+  Future<void> _pickImage() async {
+    Fx.tap();
+    try {
+      final picked = await ImagePicker()
+          .pickImage(source: ImageSource.gallery, maxWidth: 2000);
+      if (picked == null) return;
+      final name = await ImageStore.import(File(picked.path));
+      if (!mounted) return;
+      setState(() => _images.add(name));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('选择图片失败，请检查相册权限')),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeImage(String name) async {
+    Fx.tap();
+    final data = widget.data;
+    final referencedElsewhere = data != null &&
+        data.tasks.any((t) => t.id != widget.task?.id && t.images.contains(name));
+    if (!referencedElsewhere) {
+      await ImageStore.delete(name);
+    }
+    setState(() => _images.remove(name));
   }
 
   @override
@@ -259,6 +295,20 @@ class _TaskDialogState extends State<TaskDialog> {
                 });
               },
             ),
+            const SizedBox(height: 14),
+            const Text('图片', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ..._images.map((name) => _ImageThumb(
+                      name: name,
+                      onRemove: () => _removeImage(name),
+                    )),
+                _AddImageTile(onTap: _pickImage),
+              ],
+            ),
           ],
         ),
       ),
@@ -307,7 +357,7 @@ class _TaskDialogState extends State<TaskDialog> {
       reminderMode: _reminderOn ? _reminderMode : 'none',
       reminderTime: _reminderOn && reminderTime.isNotEmpty ? reminderTime : null,
       reminderWeekdays: _reminderWeekdays.toList()..sort(),
-      images: old?.images ?? [],
+      images: _images,
       pinned: old?.pinned ?? false,
       pinnedAt: old?.pinnedAt,
       createdAt: old?.createdAt ?? DateTime.now().millisecondsSinceEpoch / 1000,
@@ -457,6 +507,95 @@ class _WeekdayChip extends StatelessWidget {
             color: selected ? Colors.white : const Color(0xFF1F3A4D),
             fontWeight: selected ? FontWeight.bold : FontWeight.normal,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ImageThumb extends StatelessWidget {
+  final String name;
+  final VoidCallback onRemove;
+
+  const _ImageThumb({required this.name, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<File?>(
+      future: ImageStore.file(name),
+      builder: (_, snap) {
+        final f = snap.data;
+        return Stack(
+          children: [
+            Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFFEAF6FC),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: f == null
+                  ? const Center(
+                      child: Icon(Icons.image, color: Color(0xFFA8D8EA)))
+                  : Image.file(
+                      f,
+                      width: 76,
+                      height: 76,
+                      fit: BoxFit.cover,
+                    ),
+            ),
+            Positioned(
+              top: -4,
+              right: -4,
+              child: GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE53935),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close,
+                      size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AddImageTile extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _AddImageTile({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 76,
+        height: 76,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+              color: const Color(0xFFA8D8EA), width: 1.5),
+          color: Colors.white,
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_photo_alternate_outlined,
+                size: 24, color: Color(0xFF7FB8D4)),
+            SizedBox(height: 2),
+            Text('添加图片',
+                style: TextStyle(fontSize: 10, color: Color(0xFF6B8CA3))),
+          ],
         ),
       ),
     );

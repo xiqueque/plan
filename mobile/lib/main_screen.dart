@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'calendar_page.dart';
 import 'fx.dart';
+import 'image_store.dart';
 import 'models.dart';
 import 'reminder_service.dart';
 import 'storage.dart';
@@ -19,6 +23,7 @@ class _MainScreenState extends State<MainScreen> {
   DateTime _date = DateTime.now();
   String _query = '';
   bool _loaded = false;
+  bool _showImages = false;
 
   static const _weekdayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -69,7 +74,7 @@ class _MainScreenState extends State<MainScreen> {
     Fx.tap();
     final result = await showDialog<Task>(
       context: context,
-      builder: (_) => TaskDialog(task: task, date: _date),
+      builder: (_) => TaskDialog(task: task, date: _date, data: _data),
     );
     if (result == null) return;
     setState(() {
@@ -212,8 +217,169 @@ class _MainScreenState extends State<MainScreen> {
       _data.tasks.removeWhere((x) => x.id == t.id);
       _data.done.forEach((_, m) => m.remove(t.id));
     });
+    for (final img in t.images) {
+      final stillUsed = _data.dayImages.values.any((l) => l.contains(img)) ||
+          _data.imageDaily.containsKey(img) ||
+          _data.tasks.any((x) => x.images.contains(img));
+      if (!stillUsed) {
+        await ImageStore.delete(img);
+      }
+    }
     await _save();
     await ReminderService.instance.cancelForTask(t);
+  }
+
+  List<String> _imagesForDate(String ds) {
+    final result = <String>[];
+    final seen = <String>{};
+    for (final name in _data.dayImages[ds] ?? <String>[]) {
+      if (seen.add(name)) result.add(name);
+    }
+    _data.imageDaily.forEach((name, flag) {
+      if (flag && seen.add(name)) result.add(name);
+    });
+    for (final t in _data.tasksForDate(ds)) {
+      for (final name in t.images) {
+        if (seen.add(name)) result.add(name);
+      }
+    }
+    return result;
+  }
+
+  Future<void> _addDayImage() async {
+    Fx.tap();
+    try {
+      final picked = await ImagePicker()
+          .pickImage(source: ImageSource.gallery, maxWidth: 2000);
+      if (picked == null) return;
+      final name = await ImageStore.import(File(picked.path));
+      final ds = _dateStr(_date);
+      (_data.dayImages[ds] ??= []).add(name);
+      setState(() => _showImages = true);
+      await _save();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('选择图片失败，请检查相册权限')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteDayImage(String name) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('删除图片'),
+        content: const Text('确定删除这张图片吗？'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Fx.tap();
+              Navigator.pop(ctx, false);
+            },
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Fx.tap();
+              Navigator.pop(ctx, true);
+            },
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    _data.dayImages.forEach((_, l) => l.remove(name));
+    _data.imageDaily.remove(name);
+    final stillUsed = _data.tasks.any((t) => t.images.contains(name));
+    if (!stillUsed) {
+      await ImageStore.delete(name);
+    }
+    setState(() {});
+    await _save();
+  }
+
+  Future<void> _openImageViewer(String name) async {
+    Fx.tap();
+    final f = await ImageStore.file(name);
+    if (f == null || !mounted) return;
+    final ds = _dateStr(_date);
+    final isDay = (_data.dayImages[ds] ?? []).contains(name);
+    final marked = _data.imageDaily[name] == true;
+    final deletable = isDay || marked;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => Dialog.fullscreen(
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: InteractiveViewer(
+                  child: Center(
+                    child: Image.file(f, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 32,
+                left: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.close,
+                      color: Colors.white, size: 28),
+                  onPressed: () {
+                    Fx.tap();
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ),
+              if (deletable)
+                Positioned(
+                  bottom: 48,
+                  right: 8,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          marked
+                              ? Icons.star
+                              : Icons.star_border,
+                          color: marked
+                              ? const Color(0xFFF5A623)
+                              : Colors.white,
+                          size: 28,
+                        ),
+                        tooltip: marked ? '取消每日图片' : '设为每日图片',
+                        onPressed: () {
+                          Fx.tap();
+                          setDialogState(() {
+                            _data.imageDaily[name] =
+                                _data.imageDaily[name] != true;
+                          });
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: Colors.white, size: 28),
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          await _deleteDayImage(name);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    setState(() {});
+    await _save();
   }
 
   @override
@@ -236,6 +402,7 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             _buildHeader(),
             _buildSearch(),
+            _buildImageArea(),
             Expanded(
               child: tasks.isEmpty
                   ? _buildEmpty()
@@ -353,6 +520,127 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildImageArea() {
+    final ds = _dateStr(_date);
+    final names = _imagesForDate(ds);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+          child: Row(
+            children: [
+              InkWell(
+                onTap: () {
+                  Fx.tap();
+                  setState(() => _showImages = !_showImages);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _showImages
+                            ? Icons.expand_more
+                            : Icons.chevron_right,
+                        size: 20,
+                        color: const Color(0xFF6B8CA3),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(Icons.photo_library_outlined,
+                          size: 18, color: Color(0xFF7FB8D4)),
+                      const SizedBox(width: 6),
+                      Text(
+                        '图片 ${names.length} 张',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F3A4D),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Spacer(),
+              TextButton.icon(
+                onPressed: _addDayImage,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('添加'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  foregroundColor: const Color(0xFF6B8CA3),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_showImages)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: names.isEmpty
+                ? const Text(
+                    '今天还没有图片，点「添加」从相册选吧',
+                    style: TextStyle(fontSize: 13, color: Color(0xFF8A9BA8)),
+                  )
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 4,
+                      mainAxisSpacing: 8,
+                      crossAxisSpacing: 8,
+                    ),
+                    itemCount: names.length,
+                    itemBuilder: (_, i) {
+                      final name = names[i];
+                      final marked = _data.imageDaily[name] == true;
+                      return FutureBuilder<File?>(
+                        future: ImageStore.file(name),
+                        builder: (_, snap) {
+                          final f = snap.data;
+                          return GestureDetector(
+                            onTap: () => _openImageViewer(name),
+                            child: Stack(
+                              children: [
+                                Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(10),
+                                    color: const Color(0xFFD5E8F2),
+                                  ),
+                                  clipBehavior: Clip.antiAlias,
+                                  child: f == null
+                                      ? const Icon(Icons.image,
+                                          color: Color(0xFF8A9BA8))
+                                      : Image.file(
+                                          f,
+                                          width: double.infinity,
+                                          height: double.infinity,
+                                          fit: BoxFit.cover,
+                                        ),
+                                ),
+                                if (marked)
+                                  const Positioned(
+                                    top: 3,
+                                    left: 3,
+                                    child: Icon(Icons.star,
+                                        size: 16, color: Color(0xFFF5A623)),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+          ),
+      ],
     );
   }
 
