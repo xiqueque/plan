@@ -75,3 +75,4 @@ plan/
     - 数据含计划、课表、便签、完成状态；电脑端覆盖前自动备份
     - 桌面新版 exe：dist\每日计划.exe（旧版备份为 每日计划_old_v1.0.exe）
     - 手机新版：dist\每日计划_手机版_v0.8.0.apk
+    - 官网已上线手机版下载：https://xiqueque.github.io/plan/（Release 附件 DailyPlanMobile_v0.8.0.apk）
