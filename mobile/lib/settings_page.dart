@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_theme.dart';
 import 'fx.dart';
 import 'models.dart';
+import 'sync_page.dart';
 import 'theme.dart';
 
 /// 设置页：主题选择 + 音效/震动开关。
@@ -55,6 +56,16 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _themeId = id);
     T.apply(id);
     _persist();
+  }
+
+  Future<void> _openSync() async {
+    Fx.tap();
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SyncPage(data: widget.data, onChanged: widget.onChanged),
+      ),
+    );
   }
 
   @override
@@ -138,6 +149,28 @@ class _SettingsPageState extends State<SettingsPage> {
                   },
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text('数据',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: T.t.text)),
+          const SizedBox(height: 6),
+          Container(
+            decoration: BoxDecoration(
+              color: T.t.card,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ListTile(
+              onTap: _openSync,
+              leading: Icon(Icons.sync, color: T.t.primary),
+              title: Text('电脑同步（同一 WiFi）',
+                  style: TextStyle(color: T.t.text)),
+              subtitle: Text('拉取或推送电脑上的计划数据',
+                  style: TextStyle(color: T.t.hint, fontSize: 12)),
+              trailing: Icon(Icons.chevron_right, color: T.t.hint),
             ),
           ),
         ],

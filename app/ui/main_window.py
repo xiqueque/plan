@@ -46,7 +46,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..core import autostart, storage, theme
+from ..core import autostart, storage, sync_server, theme
 from ..core.reminder import ReminderScheduler
 from .calendar_dialog import CalendarDialog
 from .batch_dialog import BatchDialog
@@ -55,6 +55,7 @@ from .notes_dialog import NotesDialog
 from .reminder_popup import ReminderPopup
 from .settings_dialog import SettingsDialog
 from .style import build_main_qss
+from .sync_dialog import SyncDialog
 from .task_dialog import TaskDialog
 from .thumb import IMAGE_FILTER, ThumbButton
 
@@ -258,6 +259,10 @@ class MainWindow(QMainWindow):
         self._scheduler.reminderReady.connect(self._on_reminder)
         self._scheduler.set_data(self.data)
         self._scheduler.check()
+        # 同步服务（手机 ↔ 电脑，同一 WiFi）
+        self._sync_server = sync_server.SyncServer(on_update=self._on_sync_updated)
+        if self.data.get("settings", {}).get("sync_server", True):
+            self._sync_server.start()
         self._warm_up_audio()
         self._setup_tray()
 
@@ -411,6 +416,11 @@ class MainWindow(QMainWindow):
         self.notes_btn.setToolTip("随手记便签")
         self.notes_btn.clicked.connect(self.open_notes)
         bottom.addWidget(self.notes_btn)
+        self.sync_btn = QPushButton("🔄 同步")
+        self.sync_btn.setObjectName("smallBtn")
+        self.sync_btn.setToolTip("电脑与手机同步（同一 WiFi）")
+        self.sync_btn.clicked.connect(self.open_sync)
+        bottom.addWidget(self.sync_btn)
         bottom.addWidget(self.settings_btn)
         bottom.addWidget(QSizeGrip(self), 0, Qt.AlignBottom | Qt.AlignRight)
         root.addLayout(bottom)
@@ -1459,6 +1469,19 @@ class MainWindow(QMainWindow):
     def open_notes(self) -> None:
         dialog = NotesDialog(self)
         dialog.exec()
+
+    def open_sync(self) -> None:
+        SyncDialog(self).exec()
+
+    def _on_sync_updated(self) -> None:
+        """手机推送数据后刷新界面（跨线程安全地排队到主线程）。"""
+        QTimer.singleShot(0, self._reload_after_sync)
+
+    def _reload_after_sync(self) -> None:
+        self.data = storage.load_data()
+        self._scheduler.set_data(self.data)
+        self._rebuild_list()
+        self._refresh_images()
 
     # ---------- 批量编辑 ----------
     def toggle_batch_mode(self) -> None:
